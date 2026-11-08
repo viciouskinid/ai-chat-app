@@ -1,6 +1,5 @@
 class AIChatApp {
   constructor() {
-    // DOM Elements
     this.chatMessages = document.getElementById('chatMessages');
     this.chatForm = document.getElementById('chatForm');
     this.chatInput = document.getElementById('chatInput');
@@ -18,7 +17,6 @@ class AIChatApp {
     this.pastePreview = document.getElementById('pastePreview');
     this.pasteContent = document.getElementById('pasteContent');
 
-    // State
     this.isProcessing = false;
     this.currentChatId = null;
     this.chats = JSON.parse(localStorage.getItem('puter-chats') || '{}');
@@ -31,15 +29,12 @@ class AIChatApp {
   async init() {
     this.bindEvents();
     this.loadHistory();
+    this.loadTheme();
     this.setupTextarea();
     this.setupNetworkInterceptor();
 
-    // Restore model
     const savedModel = localStorage.getItem('puter-model');
-    if (savedModel) {
-      // Wait for models to load, then set
-      this.savedModel = savedModel;
-    }
+    if (savedModel) this.savedModel = savedModel;
 
     if (typeof puter === 'undefined') {
       this.modelSelect.innerHTML = '<option value="">Puter.js failed to load</option>';
@@ -48,32 +43,22 @@ class AIChatApp {
     }
 
     let signedIn = false;
-    try {
-      signedIn = await puter.auth.isSignedIn();
-    } catch (e) {
-      console.warn('isSignedIn failed', e);
-    }
-
-    if (!signedIn) {
-      this.showSignInPrompt();
-      return;
-    }
+    try { signedIn = await puter.auth.isSignedIn(); } catch (e) { console.warn(e); }
+    if (!signedIn) { this.showSignInPrompt(); return; }
     await this.afterSignIn();
   }
 
   bindEvents() {
-    this.chatForm.addEventListener('submit', e => {
-      e.preventDefault();
-      this.handleSend();
-    });
+    // Composer form submit (textarea + send button)
+    const form = document.createElement('form');
+    form.addEventListener('submit', e => { e.preventDefault(); this.handleSend(); });
+    this.sendBtn.addEventListener('click', e => { e.preventDefault(); this.handleSend(); });
+
     this.refreshUsageBtn.addEventListener('click', () => this.loadUsage());
-    
-    // Sidebar toggles
     document.getElementById('toggleSidebarBtn').addEventListener('click', () => this.sidebar.classList.toggle('hidden'));
     document.getElementById('toggleLogBtn').addEventListener('click', () => this.sidePanel.classList.toggle('hidden'));
     document.getElementById('closeSidePanelBtn').addEventListener('click', () => this.sidePanel.classList.add('hidden'));
 
-    // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -84,7 +69,6 @@ class AIChatApp {
       });
     });
 
-    // Copy buttons
     document.getElementById('copyCodeBtn').addEventListener('click', () => {
       navigator.clipboard.writeText(this.codeContent.textContent);
       document.getElementById('copyCodeBtn').textContent = 'Copied!';
@@ -96,10 +80,7 @@ class AIChatApp {
       setTimeout(() => document.getElementById('copyLogBtn').textContent = 'Copy Log', 1500);
     });
 
-    // New Chat
     document.getElementById('newChatBtn').addEventListener('click', () => this.newChat());
-
-    // Paste preview clear
     document.getElementById('clearPasteBtn').addEventListener('click', () => {
       this.pasteBuffer = '';
       this.pastePreview.classList.remove('active');
@@ -107,29 +88,47 @@ class AIChatApp {
       this.chatInput.focus();
     });
 
-    // Model change
-    this.modelSelect.addEventListener('change', () => {
-      localStorage.setItem('puter-model', this.modelSelect.value);
-    });
+    this.modelSelect.addEventListener('change', () => localStorage.setItem('puter-model', this.modelSelect.value));
 
-    // Input auto-resize
     this.chatInput.addEventListener('input', () => {
       this.chatInput.style.height = 'auto';
       this.chatInput.style.height = Math.min(this.chatInput.scrollHeight, 200) + 'px';
+      this.sendBtn.disabled = this.chatInput.value.trim() === '' && !this.pasteBuffer;
     });
 
-    // Paste handler for large text
+    this.chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.handleSend();
+      }
+    });
+
+    // Claude-style paste: only intercept if text > 500 chars
     this.chatInput.addEventListener('paste', (e) => {
       const text = e.clipboardData.getData('text');
       if (text.length > 500) {
         e.preventDefault();
         this.pasteBuffer = text;
-        this.pasteContent.textContent = text.substring(0, 1000) + (text.length > 1000 ? '...' : '');
+        this.pasteContent.textContent = text.substring(0, 800) + (text.length > 800 ? '…' : '');
         this.pastePreview.classList.add('active');
         this.chatInput.value = '';
         this.chatInput.focus();
+        this.sendBtn.disabled = false;
       }
     });
+
+    // Theme toggle
+    document.getElementById('toggleThemeBtn').addEventListener('click', () => {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('puter-theme', next);
+    });
+  }
+
+  loadTheme() {
+    const saved = localStorage.getItem('puter-theme');
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
   }
 
   setupTextarea() {
@@ -140,14 +139,11 @@ class AIChatApp {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       const url = args[0];
-      const start = performance.now();
       this.logNetwork('REQ', url, args[1]?.body);
       try {
         const response = await originalFetch(...args);
         const clone = response.clone();
-        clone.text().then(text => {
-          this.logNetwork('RES', url, text);
-        });
+        clone.text().then(text => this.logNetwork('RES', url, text));
         return response;
       } catch (err) {
         this.logNetwork('ERR', url, err.message);
@@ -157,7 +153,7 @@ class AIChatApp {
   }
 
   logNetwork(type, url, data) {
-    const entry = `[${new Date().toISOString()}] ${type} ${url}\n${data ? String(data).substring(0, 1000) + (String(data).length > 1000 ? '...' : '') : ''}\n\n`;
+    const entry = `[${new Date().toISOString()}] ${type} ${url}\n${data ? String(data).substring(0, 800) + (String(data).length > 800 ? '…' : '') : ''}\n\n`;
     this.networkLog.push(entry);
     this.logContent.textContent += entry;
     this.logContent.scrollTop = this.logContent.scrollHeight;
@@ -167,9 +163,9 @@ class AIChatApp {
     const welcome = document.getElementById('welcome');
     if (welcome) {
       welcome.innerHTML = `
-        <h2>Sign in to chat</h2>
+        <h1>Sign in to chat</h1>
         <p>Connect your Puter account to use AI models.</p>
-        <button id="signInBtn" style="margin-top:16px;padding:10px 24px;border:none;border-radius:10px;background:#1a1a1a;color:#fff;font-size:0.95rem;cursor:pointer;">Sign in with Puter</button>
+        <button id="signInBtn" style="margin-top:16px;padding:10px 24px;border:none;border-radius:20px;background:var(--accent);color:#fff;font-size:0.95rem;cursor:pointer;">Sign in with Puter</button>
       `;
       document.getElementById('signInBtn').addEventListener('click', () => this.handleSignIn());
     }
@@ -191,14 +187,9 @@ class AIChatApp {
   async afterSignIn() {
     document.getElementById('welcome')?.remove();
     this.chatInput.disabled = false;
-    this.sendBtn.disabled = false;
-
-    try {
-      await this.loadModels();
-    } catch (e) { console.error(e); }
-    try {
-      await this.loadUsage();
-    } catch (e) { console.error(e); }
+    this.sendBtn.disabled = true;
+    try { await this.loadModels(); } catch (e) { console.error(e); }
+    try { await this.loadUsage(); } catch (e) { console.error(e); }
   }
 
   async loadModels() {
@@ -223,16 +214,15 @@ class AIChatApp {
         opt.textContent = n;
         this.modelSelect.appendChild(opt);
       });
-      // Restore saved model
       if (this.savedModel && unique.includes(this.savedModel)) {
         this.modelSelect.value = this.savedModel;
       } else {
-        const claudeOpt = unique.find(n => n.includes('claude'));
-        if (claudeOpt) this.modelSelect.value = claudeOpt;
+        const c = unique.find(n => n.includes('claude'));
+        if (c) this.modelSelect.value = c;
       }
     } catch (e) {
       console.warn('listModels failed', e);
-      this.modelSelect.innerHTML = `<option value="claude-sonnet-4-6">claude-sonnet-4-6</option>`;
+      this.modelSelect.innerHTML = '<option value="claude-sonnet-4-6">claude-sonnet-4-6</option>';
     }
   }
 
@@ -240,10 +230,7 @@ class AIChatApp {
     try {
       const usage = await puter.auth.getMonthlyUsage();
       const info = usage?.allowanceInfo;
-      if (!info) {
-        this.usageText.textContent = 'Usage data unavailable';
-        return;
-      }
+      if (!info) { this.usageText.textContent = 'Usage data unavailable'; return; }
       const total = info.monthUsageAllowance;
       const remaining = info.remaining;
       const usedPct = total > 0 ? ((total - remaining) / total * 100).toFixed(1) : '?';
@@ -272,7 +259,6 @@ class AIChatApp {
     this.isProcessing = true;
     this.streamingEl.classList.add('active');
 
-    // Create or get current chat
     if (!this.currentChatId) {
       this.currentChatId = Date.now().toString();
       this.chats[this.currentChatId] = { title: msg.substring(0, 30), messages: [] };
@@ -286,45 +272,35 @@ class AIChatApp {
 
     try {
       const response = await puter.ai.chat(msg, { model, stream: true });
-      
       const aiEl = this.addMessageToUI('', 'ai');
       const contentEl = aiEl.querySelector('.message-content');
       let fullText = '';
-      let chunkCount = 0;
-
       for await (const part of response) {
-        chunkCount++;
         if (part?.text) {
           fullText += part.text;
           contentEl.textContent = fullText;
           this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
-
       this.chats[this.currentChatId].messages.push({ role: 'ai', content: fullText });
       this.saveChats();
-
-      // Check for code blocks and show in side panel
       this.extractCodeToPanel(fullText);
-
     } catch (err) {
       console.error('Chat error', err);
       this.addMessageToUI(`Error: ${err.message || err}`, 'ai');
     } finally {
       this.streamingEl.classList.remove('active');
-      this.sendBtn.disabled = false;
+      this.sendBtn.disabled = this.chatInput.value.trim() === '' && !this.pasteBuffer;
       this.isProcessing = false;
       this.chatInput.focus();
-      this.loadUsage(); // Update usage after send
+      this.loadUsage();
     }
   }
 
   extractCodeToPanel(text) {
-    const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
-    let match;
-    let lastCode = '';
-    let lastLang = 'text';
-    while ((match = codeBlockRegex.exec(text)) !== null) {
+    const re = /```(\w*)\n([\s\S]*?)```/g;
+    let match, lastCode = '', lastLang = 'text';
+    while ((match = re.exec(text)) !== null) {
       lastLang = match[1] || 'text';
       lastCode = match[2];
     }
@@ -332,7 +308,6 @@ class AIChatApp {
       this.codeLanguage.textContent = lastLang;
       this.codeContent.textContent = lastCode;
       this.sidePanel.classList.remove('hidden');
-      // Switch to code tab
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelector('.tab-btn[data-tab="code"]').classList.add('active');
       document.getElementById('tab-code').style.display = 'flex';
@@ -341,20 +316,15 @@ class AIChatApp {
   }
 
   addMessageToUI(text, sender) {
-    const welcome = document.getElementById('welcome');
-    if (welcome) welcome.remove();
-
+    document.getElementById('welcome')?.remove();
     const div = document.createElement('div');
     div.className = `message ${sender}-message`;
-
     const senderDiv = document.createElement('div');
     senderDiv.className = 'message-sender';
-    senderDiv.textContent = sender === 'user' ? 'You' : 'AI';
-
+    senderDiv.textContent = sender === 'user' ? 'You' : 'Claude';
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
     contentDiv.textContent = text;
-
     div.appendChild(senderDiv);
     div.appendChild(contentDiv);
     this.chatMessages.appendChild(div);
@@ -366,13 +336,14 @@ class AIChatApp {
     this.currentChatId = null;
     this.chatMessages.innerHTML = `
       <div class="welcome" id="welcome">
-        <h2>Hello</h2>
-        <p>Pick a model below and start chatting.</p>
+        <h1>Claude</h1>
+        <p>How can I help you today?</p>
       </div>
     `;
     this.pasteBuffer = '';
     this.pastePreview.classList.remove('active');
     this.chatInput.value = '';
+    this.sendBtn.disabled = true;
     this.loadHistory();
     this.chatInput.focus();
   }
@@ -399,9 +370,7 @@ class AIChatApp {
     if (!chat) return;
     this.currentChatId = id;
     this.chatMessages.innerHTML = '';
-    chat.messages.forEach(msg => {
-      this.addMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai');
-    });
+    chat.messages.forEach(msg => this.addMessageToUI(msg.content, msg.role === 'user' ? 'user' : 'ai'));
     this.loadHistory();
   }
 }
