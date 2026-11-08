@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; child-src 'self' data: blob:;">
+<!-- CSP: connect-src MUST include wss:// — Socket.IO uses WebSocket, not https. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com wss://api.puter.com wss://*.puter.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; child-src 'self' data: blob:;">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AI Chat · Puter</title>
@@ -26,7 +27,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);min-height:100vh;overflow:hidden;display:flex;justify-content:center;align-items:center;padding:16px;transition:background .2s,color .2s}
 .app-layout{display:flex;width:100%;max-width:1500px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border);position:relative}
-/* Sidebar */
 .sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .15s ease}
 .sidebar.hidden{width:0;border-right:none}
 .sidebar-header{padding:16px 12px 8px;display:flex;justify-content:space-between;align-items:center}
@@ -45,10 +45,8 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .history-item:hover{background:var(--surface-2)}
 .history-item.active{background:var(--surface-3);color:var(--text-primary);font-weight:500}
 .history-meta{font-size:.66rem;color:var(--text-muted);margin-top:2px;font-variant-numeric:tabular-nums}
-/* Resizer */
 .resizer{width:5px;background:transparent;cursor:col-resize;flex-shrink:0;position:relative;z-index:5;transition:background .15s}
 .resizer:hover,.resizer.dragging{background:var(--accent);opacity:.5}
-/* Chat container */
 .chat-container{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
 .top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:var(--surface-1);border-bottom:1px solid var(--border);gap:12px}
 .top-bar button{background:none;border:none;font-size:.85rem;color:var(--text-secondary);cursor:pointer;padding:4px 10px;border-radius:6px;transition:background .15s}
@@ -71,11 +69,10 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .code-block pre{margin:0;padding:12px;overflow-x:auto;font-family:var(--font-mono);font-size:.8rem;line-height:1.5;color:var(--text-primary)}
 .msg-meta{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums;border-top:1px solid var(--border);padding-top:8px;flex-wrap:wrap}
 .msg-meta button{background:none;border:none;font-size:.7rem;color:var(--accent);cursor:pointer;text-decoration:underline;padding:0}
-/* Scroll helper */
+.quota-delta{color:var(--accent);font-weight:600}
 .scroll-helper{position:absolute;left:50%;transform:translateX(-50%);bottom:20px;width:36px;height:36px;border-radius:50%;background:var(--surface-0);border:1px solid var(--border-strong);box-shadow:0 2px 8px rgba(0,0,0,.1);display:none;align-items:center;justify-content:center;cursor:pointer;z-index:10;color:var(--text-secondary)}
 .scroll-helper.visible{display:flex}
 .scroll-helper:hover{background:var(--surface-2)}
-/* Composer */
 .composer{padding:12px 24px 16px;background:var(--surface-0);border-top:1px solid var(--border)}
 .attachments{display:none;flex-wrap:wrap;gap:8px;margin-bottom:8px}
 .attachments.active{display:flex}
@@ -102,7 +99,6 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .streaming{display:none;text-align:center;color:var(--text-muted);font-size:.8rem;margin-top:8px}
 .streaming.active{display:block}
 .build-status{text-align:center;padding-top:8px;font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums}
-/* Side panel */
 .side-panel{width:var(--sidepanel-w);background:var(--surface-1);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .15s ease}
 .side-panel.hidden{width:0;border-left:none}
 .side-panel-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-1)}
@@ -227,7 +223,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
   });
 })();
 
-/* ---------- NETWORK LOG (intercept fetch) ---------- */
+/* ---------- NETWORK LOG ---------- */
 window.__netLog = [];
 (function(){
   const orig = window.fetch;
@@ -258,28 +254,27 @@ window.__netLog = [];
 
 /* ---------- PROVIDER LABEL ---------- */
 const PROVIDER_LABELS = {
-  anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', deepseek: 'DeepSeek',
-  alibaba: 'Alibaba', qwen: 'Alibaba', meta: 'Meta', mistral: 'Mistral',
-  xai: 'xAI', cohere: 'Cohere', minimax: 'MiniMax', moonshot: 'Moonshot',
-  zhipu: 'Zhipu', 'z-ai': 'Z.AI', kimi: 'Kimi', microsoft: 'Microsoft',
-  perplexity: 'Perplexity', together: 'Together', 'together-ai': 'Together',
-  togetherai: 'Together', openrouter: 'OpenRouter', infron: 'Infron',
-  glm: 'Zhipu', baidu: 'Baidu', bytedance: 'ByteDance', stepfun: 'StepFun',
-  nvidia: 'NVIDIA', amazon: 'Amazon', ai21: 'AI21', reka: 'Reka'
+  anthropic:'Anthropic',openai:'OpenAI',google:'Google',deepseek:'DeepSeek',
+  alibaba:'Alibaba',qwen:'Alibaba',meta:'Meta',mistral:'Mistral',
+  xai:'xAI',cohere:'Cohere',minimax:'MiniMax',moonshot:'Moonshot',
+  zhipu:'Zhipu','z-ai':'Z.AI',kimi:'Kimi',microsoft:'Microsoft',
+  perplexity:'Perplexity',together:'Together','together-ai':'Together',
+  togetherai:'Together',openrouter:'OpenRouter',infron:'Infron',
+  glm:'Zhipu',baidu:'Baidu',bytedance:'ByteDance',stepfun:'StepFun',
+  nvidia:'NVIDIA',amazon:'Amazon',ai21:'AI21',reka:'Reka',sakana:'Sakana'
 };
 function providerLabel(p) {
   if (!p) return 'Other';
   const k = String(p).toLowerCase();
   return PROVIDER_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1));
 }
-/* Infer provider from model id when the API doesn't return one */
 function inferProvider(id) {
   const s = String(id || '').toLowerCase();
   if (s.startsWith('claude') || s.startsWith('infron:anthropic') || s.startsWith('openrouter:anthropic')) return 'anthropic';
   if (s.startsWith('gpt') || s.startsWith('o1') || s.startsWith('o3') || s.startsWith('o4') || s.includes('/openai/')) return 'openai';
   if (s.startsWith('gemini') || s.startsWith('gemma') || s.includes('/google/')) return 'google';
   if (s.startsWith('deepseek') || s.includes('/deepseek')) return 'deepseek';
-  if (s.startsWith('qwen') || s.includes('/qwen') || s.startsWith('qwen')) return 'alibaba';
+  if (s.startsWith('qwen') || s.includes('/qwen')) return 'alibaba';
   if (s.startsWith('glm') || s.includes('/z-ai') || s.includes('/zhipu') || s.startsWith('zhipu')) return 'zhipu';
   if (s.startsWith('kimi') || s.includes('/moonshot')) return 'moonshot';
   if (s.startsWith('minimax') || s.includes('/minimax')) return 'minimax';
@@ -329,7 +324,7 @@ class AIChatApp {
     this.isProcessing = false;
     this.currentChatId = null;
     this.chats = JSON.parse(localStorage.getItem('puter-chats') || '{}');
-    this.attachments = []; // [{id, name, size, text}]
+    this.attachments = [];
     this.modelsByProvider = {};
     this.currentPanelState = null;
     this.currentRaw = null;
@@ -433,7 +428,6 @@ class AIChatApp {
     });
     this.modelSelect.addEventListener('change', () => localStorage.setItem('puter-model', this.modelSelect.value));
 
-    // keyboard shortcuts
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); this.newChat(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.focusSearch(); }
@@ -671,11 +665,12 @@ class AIChatApp {
     try {
       const usage = await puter.auth.getMonthlyUsage();
       const info = usage?.allowanceInfo;
-      if (!info) { this.usageText.textContent = 'Usage unavailable'; return; }
+      if (!info) { this.usageText.textContent = 'Usage unavailable'; return null; }
       const t = info.monthUsageAllowance, r = info.remaining;
-      const p = t > 0 ? ((t - r) / t * 100).toFixed(1) : '?';
-      this.usageText.textContent = `Quota: ${p}% used · $${(r / 1e8).toFixed(4)} left`;
-    } catch (e) { this.usageText.textContent = 'Usage error'; }
+      const p = t > 0 ? ((t - r) / t * 100) : 0;
+      this.usageText.textContent = `Quota: ${p.toFixed(1)}% used · $${(r / 1e8).toFixed(4)} left`;
+      return { total: t, remaining: r, percentUsed: p };
+    } catch (e) { this.usageText.textContent = 'Usage error'; return null; }
   }
 
   updateTotalUsage() {
@@ -720,6 +715,9 @@ class AIChatApp {
     this.chats[this.currentChatId].messages.push({ role: 'user', content: fullMsg });
     this.saveChats();
 
+    // Snapshot quota before
+    const before = await this.loadUsage();
+
     const model = this.modelSelect.value || 'claude-sonnet-4-6';
     const raw = [];
     let usageInfo = null;
@@ -745,9 +743,17 @@ class AIChatApp {
         this.chats[this.currentChatId].totalTokens = (this.chats[this.currentChatId].totalTokens || 0) + toks;
         this.chats[this.currentChatId].totalCost = (this.chats[this.currentChatId].totalCost || 0) + usd;
       }
-      this.updateMsgMeta(aiEl, usageInfo, raw, model);
       this.saveChats();
       this.updateTotalUsage();
+
+      // Snapshot quota after and compute delta
+      let deltaPct = 0;
+      const after = await this.loadUsage();
+      if (before && after && after.total > 0) {
+        deltaPct = after.percentUsed - before.percentUsed;
+      }
+      this.updateMsgMeta(aiEl, usageInfo, raw, model, deltaPct);
+
       this.showCodeInPanel(full);
       this.refreshCodeButton();
       this.renderNetworkLog();
@@ -759,7 +765,6 @@ class AIChatApp {
       this.streamingEl.classList.remove('active');
       this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
       this.isProcessing = false; this.chatInput.focus();
-      this.loadUsage();
       this.renderNetworkLog();
     }
   }
@@ -779,14 +784,18 @@ class AIChatApp {
     return out;
   }
 
-  updateMsgMeta(aiEl, usage, raw, model) {
+  updateMsgMeta(aiEl, usage, raw, model, deltaPct) {
     if (!aiEl) return;
     const toks = usage ? (usage.input_tokens || 0) + (usage.output_tokens || 0) : null;
     const usd = usage ? (usage.usd_cents || 0) / 100 : null;
+    const delta = typeof deltaPct === 'number' ? deltaPct : null;
     const meta = document.createElement('div');
     meta.className = 'msg-meta';
     meta.innerHTML = `
-      <span>${toks != null ? `${usage.input_tokens||0}↑ / ${usage.output_tokens||0}↓ · ${toks} tok · $${usd.toFixed(4)}` : 'usage not reported'}</span>
+      <span>
+        ${delta != null ? `<span class="quota-delta">−${delta.toFixed(2)}% quota</span> · ` : ''}
+        ${toks != null ? `${usage.input_tokens||0}↑ / ${usage.output_tokens||0}↓ · ${toks} tok · $${usd.toFixed(4)}` : 'usage not reported'}
+      </span>
       <button type="button" class="view-raw-btn">View raw response</button>
     `;
     meta.querySelector('.view-raw-btn').addEventListener('click', () => {
@@ -920,7 +929,7 @@ class AIChatApp {
     chat.messages.forEach(m => {
       const label = m.role === 'user' ? 'You' : (m.model || 'Claude');
       const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai', label);
-      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, [], m.model || 'Claude');
+      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, [], m.model || 'Claude', null);
     });
     const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
     if (lastAI && this.extractCode(lastAI.content)) {
