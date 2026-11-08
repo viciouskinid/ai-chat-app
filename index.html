@@ -1,55 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Chat Application</title>
-    <link rel="stylesheet" href="./app.css" />
-  </head>
-  <body>
-    <div class="chat-container">
-      <div class="chat-header">
-        <h1>AI Chat Application</h1>
-        <p>Powered by Puter.js AI</p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat Application</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="chat-container">
+    <header class="chat-header">
+      <div>
+        <h1>AI Chat</h1>
+        <p>Powered by Puter.js</p>
+      </div>
+    </header>
+
+    <main class="chat-messages" id="chatMessages">
+      <div class="welcome-message" id="welcomeMessage">
+        <h3>Ready when you are</h3>
+        <p>Select a model and start typing.</p>
+      </div>
+    </main>
+
+    <footer class="chat-input-container">
+      <div class="model-selector">
+        <select class="model-select" id="modelSelect">
+          <option value="gpt-5-nano">GPT-5 Nano</option>
+          <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
+          <option value="gemini">Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
       </div>
 
-      <div class="chat-messages" id="chatMessages">
-        <div class="welcome-message">
-          <h3>Welcome to AI Chat!</h3>
-          <p>Start a conversation by typing a message below.</p>
-        </div>
+      <form class="chat-input-form" id="chatForm">
+        <input
+          type="text"
+          class="chat-input"
+          id="chatInput"
+          placeholder="Type your message..."
+          autocomplete="off"
+          required
+        />
+        <button type="submit" class="send-button" id="sendButton">
+          Send
+        </button>
+      </form>
+
+      <div class="streaming-indicator" id="streamingIndicator">
+        AI is thinking...
       </div>
+    </footer>
+  </div>
 
-      <div class="chat-input-container">
-        <div class="model-selector">
-          <select class="model-select" id="modelSelect">
-            <option value="gpt-5-nano">GPT-5 Nano</option>
-            <option value="claude">Claude</option>
-            <option value="gemini">Gemini</option>
-            <option value="deepseek">DeepSeek</option>
-          </select>
-        </div>
-
-        <form class="chat-input-form" id="chatForm">
-          <input
-            type="text"
-            class="chat-input"
-            id="chatInput"
-            placeholder="Type your message here..."
-            required
-          />
-          <button type="submit" class="send-button" id="sendButton">
-            Send
-          </button>
-        </form>
-
-        <div class="streaming-indicator" id="streamingIndicator">
-          AI is thinking...
-        </div>
-      </div>
-    </div>
-
-    <script src="https://js.puter.com/v2/"></script>
-    <script src="./app.js"></script>
-  </body>
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="./app.js"></script>
+</body>
 </html>
