@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-<!-- CSP: connect-src MUST include wss:// — Socket.IO uses WebSocket, not https. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com wss://api.puter.com wss://*.puter.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; child-src 'self' data: blob:;">
+<!-- CSP: wss:// for Socket.IO, font-src for Puter's fonts, unsafe-eval for Puter.js -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com wss://api.puter.com wss://*.puter.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://js.puter.com https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob:; frame-src 'self' data: blob:; child-src 'self' data: blob:;">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AI Chat · Puter</title>
@@ -387,7 +387,7 @@ class AIChatApp {
     this.$('downloadCodeBtn').addEventListener('click', () => this.downloadCurrent());
     this.$('diagnosticsBtn').addEventListener('click', () => this.copyDiagnostics());
 
-    this.$('removeAttachment').addEventListener('click', () => this.clearAttachments());
+    // NOTE: no #removeAttachment binding — tiles have their own × buttons.
 
     this.chatInput.addEventListener('input', () => {
       this.chatInput.style.height = 'auto';
@@ -661,7 +661,7 @@ class AIChatApp {
   }
 
   async loadUsage() {
-    if (!this.puterReady()) { this.usageText.textContent = 'Puter unavailable'; return; }
+    if (!this.puterReady()) { this.usageText.textContent = 'Puter unavailable'; return null; }
     try {
       const usage = await puter.auth.getMonthlyUsage();
       const info = usage?.allowanceInfo;
@@ -715,7 +715,6 @@ class AIChatApp {
     this.chats[this.currentChatId].messages.push({ role: 'user', content: fullMsg });
     this.saveChats();
 
-    // Snapshot quota before
     const before = await this.loadUsage();
 
     const model = this.modelSelect.value || 'claude-sonnet-4-6';
@@ -746,7 +745,6 @@ class AIChatApp {
       this.saveChats();
       this.updateTotalUsage();
 
-      // Snapshot quota after and compute delta
       let deltaPct = 0;
       const after = await this.loadUsage();
       if (before && after && after.total > 0) {
