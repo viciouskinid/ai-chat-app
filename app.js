@@ -1,126 +1,174 @@
-class AIChatApplication {
+class AIChatApp {
   constructor() {
     this.chatMessages = document.getElementById('chatMessages');
     this.chatForm = document.getElementById('chatForm');
     this.chatInput = document.getElementById('chatInput');
-    this.sendButton = document.getElementById('sendButton');
+    this.sendBtn = document.getElementById('sendBtn');
     this.modelSelect = document.getElementById('modelSelect');
-    this.streamingIndicator = document.getElementById('streamingIndicator');
+    this.streamingEl = document.getElementById('streamingIndicator');
+    this.usageText = document.getElementById('usageText');
+    this.refreshUsageBtn = document.getElementById('refreshUsageBtn');
 
     this.isProcessing = false;
-    this.initEventListeners();
+    this.init();
   }
 
-  initEventListeners() {
-    this.chatForm.addEventListener('submit', (e) => {
+  async init() {
+    this.bindEvents();
+    await this.loadModels();
+    await this.loadUsage();
+  }
+
+  bindEvents() {
+    this.chatForm.addEventListener('submit', e => {
       e.preventDefault();
-      this.handleUserMessage();
+      this.handleSend();
     });
+    this.refreshUsageBtn.addEventListener('click', () => this.loadUsage());
   }
 
-  async handleUserMessage() {
-    if (this.isProcessing) return;
+  async loadModels() {
+    try {
+      const models = await puter.ai.listModels();
+      const list = Array.isArray(models)
+        ? models
+        : Object.values(models).flat().filter(Boolean);
+      const names = list.map(m => (typeof m === 'string' ? m : m.id || m.name)).filter(Boolean);
 
-    const message = this.chatInput.value.trim();
-    if (!message) return;
+      this.modelSelect.innerHTML = '';
+      if (names.length === 0) {
+        this.modelSelect.innerHTML = '<option value="claude-sonnet-4-6">Claude Sonnet 4.6 (fallback)</option>';
+        return;
+      }
+      const unique = [...new Set(names)];
+      unique.sort((a, b) => {
+        if (a.includes('claude') && !b.includes('claude')) return -1;
+        if (!a.includes('claude') && b.includes('claude')) return 1;
+        return a.localeCompare(b);
+      });
+      unique.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n;
+        opt.textContent = n;
+        this.modelSelect.appendChild(opt);
+      });
+      const claudeOpt = unique.find(n => n.includes('claude'));
+      if (claudeOpt) this.modelSelect.value = claudeOpt;
+    } catch (e) {
+      console.warn('listModels failed, using fallback', e);
+      this.modelSelect.innerHTML = `
+        <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+        <option value="gpt-5-nano">gpt-5-nano</option>
+      `;
+    }
+  }
+
+  async loadUsage() {
+    try {
+      const usage = await puter.auth.getMonthlyUsage();
+      const info = usage?.allowanceInfo;
+      if (!info) {
+        this.usageText.textContent = 'Usage data unavailable';
+        return;
+      }
+      const total = info.monthUsageAllowance;
+      const remaining = info.remaining;
+      const usedPct = total > 0 ? ((total - remaining) / total * 100).toFixed(1) : '?';
+      const totalUSD = (total / 1e8).toFixed(4);
+      const remainUSD = (remaining / 1e8).toFixed(4);
+      this.usageText.textContent = `Used ${usedPct}% · Remaining $${remainUSD} / $${totalUSD}`;
+    } catch (e) {
+      console.warn('getMonthlyUsage failed', e);
+      this.usageText.textContent = 'Usage error (check console)';
+    }
+  }
+
+  async handleSend() {
+    if (this.isProcessing) return;
+    const msg = this.chatInput.value.trim();
+    if (!msg) return;
 
     this.chatInput.value = '';
-    this.sendButton.disabled = true;
+    this.sendBtn.disabled = true;
     this.isProcessing = true;
+    this.streamingEl.classList.add('active');
 
-    this.addMessage(message, 'user');
-    this.streamingIndicator.classList.add('active');
+    this.addMessage(msg, 'user');
+    const model = this.modelSelect.value || 'claude-sonnet-4-6';
 
     try {
-      const selectedModel = this.modelSelect.value;
+      const response = await puter.ai.chat(msg, { model, stream: true });
+      console.log('[Raw response]', response);
 
-      // Log the full response object for inspection
-      const response = await puter.ai.chat(message, {
-        model: selectedModel,
-        stream: true,
-      });
+      const aiEl = this.addMessage('', 'ai');
+      const contentEl = aiEl.querySelector('.message-content');
+      const inspector = this.createInspector(aiEl);
 
-      // Log the raw response to console for inspection
-      console.log('[Puter.js Raw Response]', response);
-
-      let aiResponse = '';
+      let fullText = '';
       let chunkCount = 0;
-      const aiMessageElement = this.addMessage('', 'ai', true);
-      const contentDiv = aiMessageElement.querySelector('.message-content');
-      
-      // Create inspector to show raw chunks
-      const inspectorDiv = document.createElement('div');
-      inspectorDiv.className = 'inspector';
-      inspectorDiv.innerHTML = `
-        <button class="inspector-toggle" type="button">
-          ▸ Show Raw Response
-        </button>
-        <div class="inspector-content"></div>
-      `;
-      aiMessageElement.appendChild(inspectorDiv);
 
-      const toggleBtn = inspectorDiv.querySelector('.inspector-toggle');
-      const inspectorContent = inspectorDiv.querySelector('.inspector-content');
-      
-      toggleBtn.addEventListener('click', () => {
-        inspectorDiv.classList.toggle('open');
-        toggleBtn.textContent = inspectorDiv.classList.contains('open')
-          ? '▾ Hide Raw Response'
-          : '▸ Show Raw Response';
-      });
-
-      // Stream processing
       for await (const part of response) {
         chunkCount++;
-        // Show raw chunk data (truncated for display)
-        const chunkPreview = JSON.stringify(part).slice(0, 300);
-        inspectorContent.textContent += `[Chunk ${chunkCount}] ${chunkPreview}${chunkPreview.length >= 300 ? '...' : ''}\n\n`;
+        inspector.contentEl.textContent += `[chunk ${chunkCount}] ${JSON.stringify(part).slice(0, 280)}\n\n`;
 
         if (part?.text) {
-          aiResponse += part.text;
-          contentDiv.textContent = aiResponse;
+          fullText += part.text;
+          contentEl.textContent = fullText;
           this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
-
-      // Final summary in inspector
-      inspectorContent.textContent += `--- Stream Complete ---\nTotal chunks: ${chunkCount}\nFinal text length: ${aiResponse.length} chars`;
-
-    } catch (error) {
-      console.error('AI Chat Error:', error);
-      this.addMessage(`Error: ${error.message || 'Please try again.'}`, 'ai');
+      inspector.contentEl.textContent += `--- done, ${chunkCount} chunks, ${fullText.length} chars ---`;
+    } catch (err) {
+      console.error('Chat error', err);
+      this.addMessage(`Error: ${err.message || err}`, 'ai');
     } finally {
-      this.streamingIndicator.classList.remove('active');
-      this.sendButton.disabled = false;
+      this.streamingEl.classList.remove('active');
+      this.sendBtn.disabled = false;
       this.isProcessing = false;
       this.chatInput.focus();
     }
   }
 
-  addMessage(content, sender, isStreaming = false) {
-    const welcome = document.getElementById('welcomeMessage');
+  createInspector(parentEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'inspector';
+    wrap.innerHTML = `
+      <button class="inspector-toggle" type="button">▸ Show raw response</button>
+      <div class="inspector-content"></div>
+    `;
+    parentEl.appendChild(wrap);
+    const btn = wrap.querySelector('.inspector-toggle');
+    const contentEl = wrap.querySelector('.inspector-content');
+    btn.addEventListener('click', () => {
+      wrap.classList.toggle('open');
+      btn.textContent = wrap.classList.contains('open')
+        ? '▾ Hide raw response'
+        : '▸ Show raw response';
+    });
+    return { contentEl };
+  }
+
+  addMessage(text, sender) {
+    const welcome = document.getElementById('welcome');
     if (welcome) welcome.remove();
 
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}-message`;
+    const div = document.createElement('div');
+    div.className = `message ${sender}-message`;
 
     const senderDiv = document.createElement('div');
     senderDiv.className = 'message-sender';
-    senderDiv.textContent = sender === 'user' ? 'You' : 'AI Assistant';
+    senderDiv.textContent = sender === 'user' ? 'You' : 'AI';
 
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
-    contentDiv.textContent = content;
+    contentDiv.textContent = text;
 
-    messageDiv.appendChild(senderDiv);
-    messageDiv.appendChild(contentDiv);
-    this.chatMessages.appendChild(messageDiv);
+    div.appendChild(senderDiv);
+    div.appendChild(contentDiv);
+    this.chatMessages.appendChild(div);
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-
-    return messageDiv;
+    return div;
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  new AIChatApplication();
-});
+document.addEventListener('DOMContentLoaded', () => new AIChatApp());
