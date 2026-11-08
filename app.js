@@ -28,40 +28,67 @@ class AIChatApplication {
     this.sendButton.disabled = true;
     this.isProcessing = true;
 
-    // Add user message to chat
     this.addMessage(message, 'user');
-
-    // Show streaming indicator
     this.streamingIndicator.classList.add('active');
 
     try {
       const selectedModel = this.modelSelect.value;
 
-      // Use Puter.js AI chat with streaming
+      // Log the full response object for inspection
       const response = await puter.ai.chat(message, {
         model: selectedModel,
         stream: true,
       });
 
+      // Log the raw response to console for inspection
+      console.log('[Puter.js Raw Response]', response);
+
       let aiResponse = '';
-
-      // Create AI message element for streaming
+      let chunkCount = 0;
       const aiMessageElement = this.addMessage('', 'ai', true);
+      const contentDiv = aiMessageElement.querySelector('.message-content');
+      
+      // Create inspector to show raw chunks
+      const inspectorDiv = document.createElement('div');
+      inspectorDiv.className = 'inspector';
+      inspectorDiv.innerHTML = `
+        <button class="inspector-toggle" type="button">
+          ▸ Show Raw Response
+        </button>
+        <div class="inspector-content"></div>
+      `;
+      aiMessageElement.appendChild(inspectorDiv);
 
-      // Stream the response
+      const toggleBtn = inspectorDiv.querySelector('.inspector-toggle');
+      const inspectorContent = inspectorDiv.querySelector('.inspector-content');
+      
+      toggleBtn.addEventListener('click', () => {
+        inspectorDiv.classList.toggle('open');
+        toggleBtn.textContent = inspectorDiv.classList.contains('open')
+          ? '▾ Hide Raw Response'
+          : '▸ Show Raw Response';
+      });
+
+      // Stream processing
       for await (const part of response) {
+        chunkCount++;
+        // Show raw chunk data (truncated for display)
+        const chunkPreview = JSON.stringify(part).slice(0, 300);
+        inspectorContent.textContent += `[Chunk ${chunkCount}] ${chunkPreview}${chunkPreview.length >= 300 ? '...' : ''}\n\n`;
+
         if (part?.text) {
           aiResponse += part.text;
-          aiMessageElement.querySelector('.message-content').textContent =
-            aiResponse;
-
-          // Auto-scroll to bottom
+          contentDiv.textContent = aiResponse;
           this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
+
+      // Final summary in inspector
+      inspectorContent.textContent += `--- Stream Complete ---\nTotal chunks: ${chunkCount}\nFinal text length: ${aiResponse.length} chars`;
+
     } catch (error) {
       console.error('AI Chat Error:', error);
-      this.addMessage('Sorry, I encountered an error. Please try again.', 'ai');
+      this.addMessage(`Error: ${error.message || 'Please try again.'}`, 'ai');
     } finally {
       this.streamingIndicator.classList.remove('active');
       this.sendButton.disabled = false;
@@ -71,11 +98,8 @@ class AIChatApplication {
   }
 
   addMessage(content, sender, isStreaming = false) {
-    // Remove welcome message if it exists
-    const welcomeMessage = this.chatMessages.querySelector('.welcome-message');
-    if (welcomeMessage) {
-      welcomeMessage.remove();
-    }
+    const welcome = document.getElementById('welcomeMessage');
+    if (welcome) welcome.remove();
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}-message`;
@@ -91,15 +115,12 @@ class AIChatApplication {
     messageDiv.appendChild(senderDiv);
     messageDiv.appendChild(contentDiv);
     this.chatMessages.appendChild(messageDiv);
-
-    // Auto-scroll to bottom
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
 
     return messageDiv;
   }
 }
 
-// Initialize the application when the page loads
 document.addEventListener('DOMContentLoaded', () => {
   new AIChatApplication();
 });
