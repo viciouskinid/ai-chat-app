@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:; child-src 'self' data: blob:;">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AI Chat · Puter</title>
@@ -10,7 +10,7 @@
   --bg:#faf9f5;--surface-0:#ffffff;--surface-1:#f5f4ee;--surface-2:#ecebe3;--surface-3:#e4e2d7;
   --text-primary:#1a1a1a;--text-secondary:#5c5a54;--text-muted:#9a978e;
   --border:#e5e3d9;--border-strong:#d6d3c6;--accent:#d97757;--accent-hover:#c96647;
-  --user-bubble:#f0eee6;--code-bg:#f7f6f0;
+  --user-bubble:#f0eee6;--code-bg:#f7f6f0;--code-border:#e0ddd2;
   --font-ui:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
   --font-serif:Georgia,'Times New Roman',serif;
   --font-mono:'SF Mono','Consolas','Courier New',monospace;
@@ -20,12 +20,12 @@
   --bg:#1a1915;--surface-0:#22211d;--surface-1:#2a2924;--surface-2:#35332c;--surface-3:#3f3d35;
   --text-primary:#f0eee6;--text-secondary:#b8b5a8;--text-muted:#7d7a6e;
   --border:#3a3830;--border-strong:#4a4840;--accent:#d97757;--accent-hover:#e88a6c;
-  --user-bubble:#35332c;--code-bg:#1e1d19;
+  --user-bubble:#35332c;--code-bg:#1e1d19;--code-border:#3a3830;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);min-height:100vh;overflow:hidden;display:flex;justify-content:center;align-items:center;padding:16px;transition:background .2s,color .2s}
-.app-layout{display:flex;width:100%;max-width:1400px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border)}
-.sidebar{width:260px;background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden}
+.app-layout{display:flex;width:100%;max-width:1440px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border)}
+.sidebar{width:270px;background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden}
 .sidebar.hidden{width:0;border-right:none}
 .sidebar-header{padding:20px 16px 12px;display:flex;justify-content:space-between;align-items:center}
 .brand{font-family:var(--font-serif);font-size:1.3rem;font-weight:500;letter-spacing:-.02em}
@@ -38,20 +38,32 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .history-item{padding:8px 12px;border-radius:var(--radius-sm);cursor:pointer;font-size:.85rem;color:var(--text-secondary);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:background .15s}
 .history-item:hover{background:var(--surface-2)}
 .history-item.active{background:var(--surface-3);color:var(--text-primary);font-weight:500}
+.history-meta{font-size:.68rem;color:var(--text-muted);margin-top:2px;font-variant-numeric:tabular-nums}
 .chat-container{flex:1;display:flex;flex-direction:column;min-width:0}
-.top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:var(--surface-1);border-bottom:1px solid var(--border)}
+.top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:var(--surface-1);border-bottom:1px solid var(--border);gap:12px}
 .top-bar button{background:none;border:none;font-size:.85rem;color:var(--text-secondary);cursor:pointer;padding:4px 10px;border-radius:6px;transition:background .15s}
 .top-bar button:hover{background:var(--surface-2)}
-.usage-bar{display:flex;gap:10px;align-items:center;font-size:.78rem;color:var(--text-muted)}
-.chat-messages{flex:1;padding:32px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:20px;background:var(--bg)}
+.usage-bar{display:flex;gap:14px;align-items:center;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap}
+.usage-bar b{color:var(--text-secondary);font-weight:600}
+.chat-messages{flex:1;padding:28px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;background:var(--bg)}
 .welcome{text-align:center;color:var(--text-muted);margin:auto;padding:40px}
 .welcome h1{font-family:var(--font-serif);font-weight:400;font-size:2.2rem;margin-bottom:8px;color:var(--text-primary)}
 .welcome p{font-size:1rem;color:var(--text-secondary)}
-.message{max-width:78%;padding:14px 18px;border-radius:var(--radius);line-height:1.6;font-size:.95rem}
+.message{max-width:82%;padding:14px 18px;border-radius:var(--radius);line-height:1.6;font-size:.95rem}
 .user-message{background:var(--user-bubble);align-self:flex-end;border-bottom-right-radius:4px}
-.ai-message{background:var(--surface-0);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
+.ai-message{background:var(--surface-0);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px;width:82%}
 .message-sender{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:6px}
 .message-content{white-space:pre-wrap;word-break:break-word}
+/* Chat code block */
+.code-block{margin:10px 0;border:1px solid var(--code-border);border-radius:8px;overflow:hidden;background:var(--code-bg)}
+.code-block-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--surface-2);font-size:.72rem;color:var(--text-secondary);border-bottom:1px solid var(--code-border)}
+.code-block-header button{background:none;border:none;font-size:.72rem;color:var(--accent);cursor:pointer;text-decoration:underline}
+.code-block pre{margin:0;padding:12px;overflow-x:auto;font-family:var(--font-mono);font-size:.8rem;line-height:1.5;color:var(--text-primary)}
+/* Per-message meta */
+.msg-meta{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums;border-top:1px solid var(--border);padding-top:8px;flex-wrap:wrap}
+.msg-meta button{background:none;border:none;font-size:.7rem;color:var(--accent);cursor:pointer;text-decoration:underline;padding:0}
+.raw-panel{display:none;margin-top:8px;padding:10px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:6px;font-family:var(--font-mono);font-size:.68rem;color:var(--text-secondary);max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.raw-panel.open{display:block}
 .composer{padding:12px 24px 16px;background:var(--surface-0);border-top:1px solid var(--border)}
 .composer-box{background:var(--surface-1);border:1px solid var(--border-strong);border-radius:var(--radius-lg);padding:10px 12px 6px;transition:border-color .2s,box-shadow .2s}
 .composer-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.12)}
@@ -76,20 +88,27 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .streaming{display:none;text-align:center;color:var(--text-muted);font-size:.8rem;margin-top:8px}
 .streaming.active{display:block}
 .build-status{text-align:center;padding-top:8px;font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums}
-.side-panel{width:440px;background:var(--surface-1);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden}
+/* Side panel — Claude-style */
+.side-panel{width:460px;background:var(--surface-1);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden}
 .side-panel.hidden{width:0;border-left:none}
-.side-panel-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
-.tabs{display:flex;gap:6px}
-.tab-btn{background:none;border:none;padding:6px 12px;border-radius:6px;font-size:.82rem;cursor:pointer;color:var(--text-secondary);font-weight:500}
-.tab-btn.active{background:var(--surface-3);color:var(--text-primary)}
-.side-panel-header button{background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-muted)}
-.tab-content{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.code-header{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;background:var(--surface-2);font-size:.75rem;color:var(--text-secondary)}
-.code-header button{background:none;border:none;font-size:.75rem;cursor:pointer;color:var(--accent);text-decoration:underline}
+.side-panel-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-1)}
+.segmented{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:2px;flex-shrink:0}
+.segmented button{background:none;border:none;padding:5px 10px;border-radius:6px;font-size:.78rem;color:var(--text-secondary);cursor:pointer}
+.segmented button.active{background:var(--surface-0);color:var(--text-primary);box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.side-title{flex:1;min-width:0;font-size:.82rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:4px}
+.side-title b{color:var(--text-primary);font-weight:500}
+.side-title .sep{opacity:.5;margin:0 4px}
+.side-actions{display:flex;gap:4px;flex-shrink:0}
+.side-actions button{background:none;border:none;font-size:.8rem;color:var(--text-secondary);cursor:pointer;padding:4px 8px;border-radius:6px}
+.side-actions button:hover{background:var(--surface-2);color:var(--text-primary)}
+.side-actions .primary{color:var(--accent);text-decoration:underline}
+.side-body{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--surface-0)}
+.side-tab{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.side-tab[hidden]{display:none}
+.preview-frame{flex:1;border:none;background:#fff;width:100%;height:100%}
 .code-preview{flex:1;padding:16px;overflow:auto;font-family:var(--font-mono);font-size:.78rem;line-height:1.5;background:var(--code-bg);white-space:pre-wrap;word-break:break-all}
-.preview-frame{flex:1;border:none;background:#fff;width:100%}
-@media(max-width:900px){.sidebar{display:none}.side-panel{width:320px}}
-@media(max-width:600px){body{padding:0}.app-layout{height:100vh;border-radius:0;border:none}.side-panel{display:none}.message{max-width:92%}}
+@media(max-width:900px){.sidebar{display:none}.side-panel{width:340px}}
+@media(max-width:600px){body{padding:0}.app-layout{height:100vh;border-radius:0;border:none}.side-panel{display:none}.message{max-width:92%}.ai-message{width:92%}}
 </style>
 </head>
 <body>
@@ -103,7 +122,11 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
   <div class="chat-container">
     <div class="top-bar">
       <button id="toggleSidebarBtn" title="Toggle History">☰</button>
-      <div class="usage-bar" id="usageBar"><span id="usageText">Usage loading…</span><button id="refreshUsageBtn" title="Refresh">↻</button></div>
+      <div class="usage-bar" id="usageBar">
+        <span id="usageText">Usage loading…</span>
+        <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.0000</b></span>
+        <button id="refreshUsageBtn" title="Refresh Puter quota">↻</button>
+      </div>
       <button id="toggleLogBtn" title="Toggle Code View">Code</button>
     </div>
 
@@ -120,7 +143,6 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
         </div>
         <button class="attachment-remove" id="removeAttachment" title="Remove">×</button>
       </div>
-
       <div class="composer-box">
         <textarea id="chatInput" placeholder="How can I help you today?" rows="1"></textarea>
         <div class="composer-chin">
@@ -136,70 +158,53 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
     </footer>
   </div>
 
+  <!-- Claude-style side panel -->
   <aside class="side-panel hidden" id="sidePanel">
     <div class="side-panel-header">
-      <div class="tabs"><button class="tab-btn active" data-tab="preview">Preview</button><button class="tab-btn" data-tab="code">Code</button></div>
-      <button id="closeSidePanelBtn" title="Close">×</button>
+      <div class="segmented" role="tablist">
+        <button class="active" data-tab="preview" role="tab">Preview</button>
+        <button data-tab="code" role="tab">Code</button>
+      </div>
+      <div class="side-title" id="sideTitle"><b id="codeFileName">code</b><span class="sep">·</span><span id="codeLanguage">html</span></div>
+      <div class="side-actions">
+        <button class="primary" id="copyCodeBtn" title="Copy code">Copy</button>
+        <button id="downloadCodeBtn" title="Download file">⤓</button>
+        <button id="closeSidePanelBtn" title="Close">×</button>
+      </div>
     </div>
-    <div class="tab-content" id="tab-preview"><iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe></div>
-    <div class="tab-content" id="tab-code" style="display:none;">
-      <div class="code-header"><span id="codeLanguage">html</span><button id="copyCodeBtn" title="Copy Code">Copy</button></div>
-      <pre class="code-preview"><code id="codeContent"></code></pre>
+    <div class="side-body">
+      <div class="side-tab" id="tab-preview"><iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe></div>
+      <div class="side-tab" id="tab-code" hidden><pre class="code-preview"><code id="codeContent"></code></pre></div>
     </div>
   </aside>
 </div>
 
 <script>
-/* ---------- BUILD STAMP ----------
- * LOGIC:
- * 1. Try the real clock (Date.now / new Date). In a browser this always works.
- * 2. Sanity-check the year (>= 2020). If the clock is obviously wrong, treat it
- *    as "no clock access" and fall through to the fallback.
- * 3. Clock OK  -> show the real timestamp. NO version number is displayed,
- *    because the version exists only to disambiguate changes made without a clock.
- * 4. Clock FAIL -> stamp "unknown", increment version, and note the reason.
- * 5. The previous {stamp, version, clockWorks} is stored in localStorage so the
- *    fallback can increment across edits even without clock access.
- */
+/* ---------- BUILD STAMP (version only if clock fails) ---------- */
 (function () {
   const KEY = 'puter-build-meta';
   let prev = null;
   try { prev = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) {}
-
   let stamp, version = null, note = null, clockWorks = false;
-
   try {
     const now = new Date();
     if (now.getFullYear() < 2020) throw new Error('clock suspicious');
     const pad = n => String(n).padStart(2, '0');
-    stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
-            `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
     clockWorks = true;
-    // No version when the timestamp is real.
   } catch (e) {
     stamp = 'unknown';
     version = (prev && prev.version ? prev.version : 0) + 1;
     note = 'AI had no clock access — version bumped.';
   }
-
-  try {
-    localStorage.setItem(KEY, JSON.stringify({ stamp, version, note, clockWorks }));
-  } catch (_) {}
-
+  try { localStorage.setItem(KEY, JSON.stringify({ stamp, version, note, clockWorks })); } catch (_) {}
   document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById('build');
-    if (!el) return;
-    el.textContent = clockWorks
-      ? `Build ${stamp}`
-      : `Build ${stamp} · v${version} (${note})`;
+    if (el) el.textContent = clockWorks ? `Build ${stamp}` : `Build ${stamp} · v${version} (${note})`;
   });
 })();
 
-/* ---------- APP ----------
- * Guard: Puter.js may not have loaded (CSP, network, extension). In that case
- * window.puter is undefined. We never call puter.* without checking first, so
- * the "puter is not defined" ReferenceError cannot happen.
- */
+/* ---------- APP ---------- */
 class AIChatApp {
   constructor() {
     this.$ = id => document.getElementById(id);
@@ -210,11 +215,13 @@ class AIChatApp {
     this.modelSelect = this.$('modelSelect');
     this.streamingEl = this.$('streamingIndicator');
     this.usageText = this.$('usageText');
+    this.totalUsage = this.$('totalUsage');
     this.historyList = this.$('historyList');
     this.sidebar = this.$('sidebar');
     this.sidePanel = this.$('sidePanel');
     this.codeContent = this.$('codeContent');
     this.codeLanguage = this.$('codeLanguage');
+    this.codeFileName = this.$('codeFileName');
     this.previewFrame = this.$('previewFrame');
     this.attachmentChip = this.$('attachmentChip');
     this.attachmentName = this.$('attachmentName');
@@ -225,28 +232,26 @@ class AIChatApp {
     this.chats = JSON.parse(localStorage.getItem('puter-chats') || '{}');
     this.pasteBuffer = '';
     this.modelsByProvider = {};
+    this.currentPanelState = null; // { code, lang, fileName }
 
     this.init();
   }
-
-  puterReady() {
-    return typeof window.puter !== 'undefined';
-  }
+  puterReady() { return typeof window.puter !== 'undefined'; }
 
   async init() {
     this.bindEvents();
     this.loadHistory();
     this.loadTheme();
     this.setupTextarea();
+    this.updateTotalUsage();
 
     if (!this.puterReady()) {
       this.usageText.textContent = 'Puter unavailable — check CSP / network';
       this.providerSelect.innerHTML = '<option value="">Puter unavailable</option>';
       this.sendBtn.disabled = true;
-      console.error('Puter.js did not load. Open DevTools → Console/Network and confirm https://js.puter.com/v2/ returns 200 and is not blocked by CSP.');
+      console.error('Puter.js not loaded. Check CSP meta is first in <head>, and https://js.puter.com/v2/ returns 200.');
       return;
     }
-
     let signedIn = false;
     try { signedIn = await puter.auth.isSignedIn(); } catch (_) {}
     if (!signedIn) { this.showSignInPrompt(); return; }
@@ -260,18 +265,30 @@ class AIChatApp {
     this.$('toggleLogBtn').addEventListener('click', () => this.sidePanel.classList.toggle('hidden'));
     this.$('closeSidePanelBtn').addEventListener('click', () => this.sidePanel.classList.add('hidden'));
 
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', e => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      const t = e.target.dataset.tab;
-      this.$('tab-preview').style.display = t === 'preview' ? 'flex' : 'none';
-      this.$('tab-code').style.display = t === 'code' ? 'flex' : 'none';
-    }));
+    document.querySelectorAll('.segmented button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const t = btn.dataset.tab;
+        this.$('tab-preview').hidden = t !== 'preview';
+        this.$('tab-code').hidden = t !== 'code';
+      });
+    });
 
     this.$('copyCodeBtn').addEventListener('click', () => {
       navigator.clipboard.writeText(this.codeContent.textContent);
       this.$('copyCodeBtn').textContent = 'Copied!';
       setTimeout(() => this.$('copyCodeBtn').textContent = 'Copy', 1500);
+    });
+    this.$('downloadCodeBtn').addEventListener('click', () => {
+      const s = this.currentPanelState; if (!s) return;
+      const ext = ({ html: 'html', css: 'css', js: 'js', javascript: 'js', python: 'py', json: 'json' })[s.lang] || 'txt';
+      const blob = new Blob([s.code], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${s.fileName}.${ext}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
 
     this.$('newChatBtn').addEventListener('click', () => this.newChat());
@@ -304,22 +321,17 @@ class AIChatApp {
       const models = this.modelsByProvider[p] || [];
       models.forEach(m => {
         const o = document.createElement('option');
-        o.value = m.id;
-        o.textContent = m.name || m.id;
+        o.value = m.id; o.textContent = m.name || m.id;
         this.modelSelect.appendChild(o);
       });
       if (models.length) this.modelSelect.value = models[0].id;
       const saved = localStorage.getItem('puter-model');
       if (saved && models.some(m => m.id === saved)) this.modelSelect.value = saved;
     });
-
     this.modelSelect.addEventListener('change', () => localStorage.setItem('puter-model', this.modelSelect.value));
   }
 
-  loadTheme() {
-    const s = localStorage.getItem('puter-theme');
-    if (s) document.documentElement.setAttribute('data-theme', s);
-  }
+  loadTheme() { const s = localStorage.getItem('puter-theme'); if (s) document.documentElement.setAttribute('data-theme', s); }
   setupTextarea() { this.chatInput.style.height = 'auto'; }
 
   setAttachment(text) {
@@ -328,16 +340,13 @@ class AIChatApp {
     this.attachmentName.textContent = 'pasted-content.txt';
     this.attachmentMeta.textContent = `TXT ${kb} KB`;
     this.attachmentChip.classList.add('active');
-    this.chatInput.value = '';
-    this.chatInput.focus();
+    this.chatInput.value = ''; this.chatInput.focus();
     this.sendBtn.disabled = false;
   }
   clearAttachment() {
     this.pasteBuffer = '';
     this.attachmentChip.classList.remove('active');
-    this.chatInput.value = '';
-    this.sendBtn.disabled = true;
-    this.chatInput.focus();
+    this.chatInput.value = ''; this.sendBtn.disabled = true; this.chatInput.focus();
   }
 
   showSignInPrompt() {
@@ -348,25 +357,16 @@ class AIChatApp {
       this.$('signInBtn').addEventListener('click', () => this.handleSignIn());
     }
     this.usageText.textContent = 'Not signed in';
-    this.chatInput.disabled = true;
-    this.sendBtn.disabled = true;
+    this.chatInput.disabled = true; this.sendBtn.disabled = true;
   }
-
   async handleSignIn() {
     if (!this.puterReady()) return;
-    try {
-      await puter.auth.signIn({ attempt_temp_user_creation: true });
-      await this.afterSignIn();
-    } catch (e) {
-      console.error(e);
-      this.usageText.textContent = 'Sign in failed';
-    }
+    try { await puter.auth.signIn({ attempt_temp_user_creation: true }); await this.afterSignIn(); }
+    catch (e) { console.error(e); this.usageText.textContent = 'Sign in failed'; }
   }
-
   async afterSignIn() {
     this.$('welcome')?.remove();
-    this.chatInput.disabled = false;
-    this.sendBtn.disabled = true;
+    this.chatInput.disabled = false; this.sendBtn.disabled = true;
     try { await this.loadModels(); } catch (e) { console.error(e); }
     try { await this.loadUsage(); } catch (e) { console.error(e); }
   }
@@ -376,8 +376,7 @@ class AIChatApp {
     try {
       const models = await puter.ai.listModels();
       this.modelsByProvider = {};
-      const list = Array.isArray(models) ? models : [];
-      list.forEach(m => {
+      (Array.isArray(models) ? models : []).forEach(m => {
         const p = m.provider || 'other';
         (this.modelsByProvider[p] ||= []).push({ id: m.id || m.name, name: m.name || m.id });
       });
@@ -385,18 +384,15 @@ class AIChatApp {
       this.providerSelect.innerHTML = '';
       providers.forEach(p => {
         const o = document.createElement('option');
-        o.value = p; o.textContent = p;
-        this.providerSelect.appendChild(o);
+        o.value = p; o.textContent = p; this.providerSelect.appendChild(o);
       });
-
       const saved = localStorage.getItem('puter-model');
       if (saved) {
         for (const p of providers) {
           if (this.modelsByProvider[p].some(m => m.id === saved)) {
             this.providerSelect.value = p;
             this.providerSelect.dispatchEvent(new Event('change'));
-            this.modelSelect.value = saved;
-            break;
+            this.modelSelect.value = saved; break;
           }
         }
       }
@@ -416,87 +412,151 @@ class AIChatApp {
       if (!info) { this.usageText.textContent = 'Usage unavailable'; return; }
       const t = info.monthUsageAllowance, r = info.remaining;
       const p = t > 0 ? ((t - r) / t * 100).toFixed(1) : '?';
-      this.usageText.textContent = `Used ${p}% · Remaining $${(r / 1e8).toFixed(4)} / $${(t / 1e8).toFixed(4)}`;
-    } catch (e) {
-      this.usageText.textContent = 'Usage error';
+      this.usageText.textContent = `Quota: ${p}% used · $${(r / 1e8).toFixed(4)} left`;
+    } catch (e) { this.usageText.textContent = 'Usage error'; }
+  }
+
+  updateTotalUsage() {
+    let tok = 0, cost = 0;
+    for (const chat of Object.values(this.chats)) {
+      tok += chat.totalTokens || 0;
+      cost += chat.totalCost || 0;
     }
+    this.totalUsage.innerHTML = `Σ <b>${tok.toLocaleString()}</b> tok · <b>$${cost.toFixed(4)}</b>`;
   }
 
   async handleSend() {
     if (this.isProcessing) return;
-    if (!this.puterReady()) { this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai'); return; }
-
-    let msg = this.chatInput.value.trim();
-    if (this.pasteBuffer) {
-      msg = this.pasteBuffer + (msg ? '\n\n' + msg : '');
-      this.clearAttachment();
+    if (!this.puterReady()) {
+      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai');
+      return;
     }
+    let msg = this.chatInput.value.trim();
+    if (this.pasteBuffer) { msg = this.pasteBuffer + (msg ? '\n\n' + msg : ''); this.clearAttachment(); }
     if (!msg) return;
 
-    this.chatInput.value = '';
-    this.chatInput.style.height = 'auto';
-    this.sendBtn.disabled = true;
-    this.isProcessing = true;
+    this.chatInput.value = ''; this.chatInput.style.height = 'auto';
+    this.sendBtn.disabled = true; this.isProcessing = true;
     this.streamingEl.classList.add('active');
 
     if (!this.currentChatId) {
       this.currentChatId = Date.now().toString();
-      this.chats[this.currentChatId] = { title: msg.substring(0, 30), messages: [] };
+      this.chats[this.currentChatId] = { title: msg.substring(0, 30), messages: [], totalTokens: 0, totalCost: 0 };
     }
     this.addMessageToUI(msg, 'user');
     this.chats[this.currentChatId].messages.push({ role: 'user', content: msg });
     this.saveChats();
 
     const model = this.modelSelect.value || 'claude-sonnet-4-6';
+    const raw = [];          // raw streamed chunks for the inspector
+    let usageInfo = null;    // last usage chunk from Puter
+
     try {
       const response = await puter.ai.chat(msg, { model, stream: true });
       const aiEl = this.addMessageToUI('', 'ai');
       const contentEl = aiEl.querySelector('.message-content');
       let full = '';
       for await (const part of response) {
+        raw.push(part);
+        if (part?.usage) usageInfo = part.usage;
         if (part?.text) {
           full += part.text;
-          contentEl.textContent = full;
+          contentEl.innerHTML = this.renderMarkdown(full);
           this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
-      this.chats[this.currentChatId].messages.push({ role: 'ai', content: full });
+      this.chats[this.currentChatId].messages.push({ role: 'ai', content: full, usage: usageInfo });
+      if (usageInfo) {
+        const toks = (usageInfo.input_tokens || 0) + (usageInfo.output_tokens || 0);
+        const usd = (usageInfo.usd_cents || 0) / 100;
+        this.chats[this.currentChatId].totalTokens = (this.chats[this.currentChatId].totalTokens || 0) + toks;
+        this.chats[this.currentChatId].totalCost = (this.chats[this.currentChatId].totalCost || 0) + usd;
+        this.updateMsgMeta(aiEl, usageInfo, raw);
+      } else {
+        this.updateMsgMeta(aiEl, null, raw);
+      }
       this.saveChats();
-      this.updateCodePanel(full);
+      this.updateTotalUsage();
+      this.showCodeInPanel(full);
+      console.log('[Puter raw response]', raw);
     } catch (err) {
       console.error(err);
       this.addMessageToUI(`Error: ${err.message || err}`, 'ai');
     } finally {
       this.streamingEl.classList.remove('active');
       this.sendBtn.disabled = this.chatInput.value.trim() === '' && !this.pasteBuffer;
-      this.isProcessing = false;
-      this.chatInput.focus();
+      this.isProcessing = false; this.chatInput.focus();
       this.loadUsage();
     }
+  }
+
+  /* Render fenced code blocks inside a chat message */
+  renderMarkdown(text) {
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const re = /```(\w*)\n([\s\S]*?)```/g;
+    let out = '', last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      out += esc(text.slice(last, m.index));
+      const lang = m[1] || 'text';
+      const code = m[2];
+      out += `<div class="code-block"><div class="code-block-header"><span>${lang}</span><button onclick="window.__copyCode(this)">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
+      last = m.index + m[0].length;
+    }
+    out += esc(text.slice(last));
+    return out;
+  }
+
+  /* Per-message meta: tokens, cost, raw response toggle */
+  updateMsgMeta(aiEl, usage, raw) {
+    if (!aiEl) return;
+    const toks = usage ? (usage.input_tokens || 0) + (usage.output_tokens || 0) : null;
+    const usd = usage ? (usage.usd_cents || 0) / 100 : null;
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.innerHTML = `
+      <span>${toks != null ? `${usage.input_tokens||0}↑ / ${usage.output_tokens||0}↓ · ${toks} tok · $${usd.toFixed(4)}` : 'usage not reported'}</span>
+      <button type="button">Show raw response</button>
+    `;
+    const rawPanel = document.createElement('div');
+    rawPanel.className = 'raw-panel';
+    rawPanel.textContent = JSON.stringify(raw, null, 2);
+    meta.querySelector('button').addEventListener('click', e => {
+      const open = rawPanel.classList.toggle('open');
+      e.target.textContent = open ? 'Hide raw response' : 'Show raw response';
+    });
+    aiEl.appendChild(meta);
+    aiEl.appendChild(rawPanel);
+  }
+
+  /* Extract last code block, show in Claude-style panel */
+  showCodeInPanel(text) {
+    const found = this.extractCode(text);
+    if (!found) return; // don't hide an already-open panel
+    this.currentPanelState = found;
+    this.codeLanguage.textContent = found.lang;
+    this.codeFileName.textContent = found.fileName;
+    this.codeContent.textContent = found.code;
+    if (found.lang === 'html' || /<!DOCTYPE html/i.test(found.code) || /<html[\s>]/i.test(found.code)) {
+      // srcdoc injects a base so relative links open in a new tab; sandbox still runs scripts.
+      const safe = found.code.replace(/<\/script>/gi, '<\\/script>');
+      this.previewFrame.srcdoc = `<!DOCTYPE html><html><head><base target="_blank"></head><body>${safe}</body></html>`;
+    } else {
+      this.previewFrame.srcdoc = `<pre style="font-family:monospace;padding:16px;white-space:pre-wrap;">${found.code.replace(/</g,'&lt;')}</pre>`;
+    }
+    this.sidePanel.classList.remove('hidden');
+    document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
+    document.querySelector('.segmented button[data-tab="preview"]').classList.add('active');
+    this.$('tab-preview').hidden = false;
+    this.$('tab-code').hidden = true;
   }
 
   extractCode(text) {
     const re = /```(\w*)\n([\s\S]*?)```/g;
     let m, last = '', lang = 'text';
     while ((m = re.exec(text)) !== null) { lang = m[1] || 'text'; last = m[2]; }
-    return last ? { code: last, lang } : null;
-  }
-
-  updateCodePanel(text) {
-    const found = this.extractCode(text);
-    if (!found) { this.sidePanel.classList.add('hidden'); return; }
-    this.codeLanguage.textContent = found.lang;
-    this.codeContent.textContent = found.code;
-    if (found.lang === 'html' || /^\s*<!DOCTYPE html/i.test(found.code) || /<html[\s>]/i.test(found.code)) {
-      this.previewFrame.srcdoc = found.code;
-    } else {
-      this.previewFrame.srcdoc = `<pre style="font-family:monospace;padding:16px;white-space:pre-wrap;">${found.code.replace(/</g, '&lt;')}</pre>`;
-    }
-    this.sidePanel.classList.remove('hidden');
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('.tab-btn[data-tab="preview"]').classList.add('active');
-    this.$('tab-preview').style.display = 'flex';
-    this.$('tab-code').style.display = 'none';
+    if (!last) return null;
+    const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[lang] || 'txt';
+    return { code: last, lang, fileName: `code.${ext}` };
   }
 
   addMessageToUI(text, sender) {
@@ -505,7 +565,9 @@ class AIChatApp {
     div.className = `message ${sender}-message`;
     const s = document.createElement('div'); s.className = 'message-sender';
     s.textContent = sender === 'user' ? 'You' : 'Claude';
-    const c = document.createElement('div'); c.className = 'message-content'; c.textContent = text;
+    const c = document.createElement('div'); c.className = 'message-content';
+    if (sender === 'ai') c.innerHTML = this.renderMarkdown(text);
+    else c.textContent = text;
     div.appendChild(s); div.appendChild(c);
     this.chatMessages.appendChild(div);
     this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
@@ -515,9 +577,9 @@ class AIChatApp {
   newChat() {
     this.currentChatId = null;
     this.chatMessages.innerHTML = `<div class="welcome" id="welcome"><h1>Claude</h1><p>How can I help you today?</p></div>`;
-    this.clearAttachment();
-    this.sendBtn.disabled = true;
+    this.clearAttachment(); this.sendBtn.disabled = true;
     this.sidePanel.classList.add('hidden');
+    this.currentPanelState = null;
     this.loadHistory();
     this.chatInput.focus();
   }
@@ -526,10 +588,12 @@ class AIChatApp {
 
   loadHistory() {
     this.historyList.innerHTML = '';
-    Object.entries(this.chats).sort((a, b) => b[0] - a[0]).forEach(([id, chat]) => {
+    Object.entries(this.chats).sort((a,b)=>b[0]-a[0]).forEach(([id, chat]) => {
       const item = document.createElement('div');
-      item.className = `history-item ${this.currentChatId === id ? 'active' : ''}`;
-      item.textContent = chat.title || 'Untitled';
+      item.className = `history-item ${this.currentChatId===id?'active':''}`;
+      const toks = (chat.totalTokens||0).toLocaleString();
+      const cost = (chat.totalCost||0).toFixed(4);
+      item.innerHTML = `${chat.title || 'Untitled'}<div class="history-meta">${toks} tok · $${cost}</div>`;
       item.addEventListener('click', () => this.loadChat(id));
       this.historyList.appendChild(item);
     });
@@ -539,27 +603,34 @@ class AIChatApp {
     const chat = this.chats[id]; if (!chat) return;
     this.currentChatId = id;
     this.chatMessages.innerHTML = '';
-    chat.messages.forEach(m => this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai'));
+    chat.messages.forEach(m => {
+      const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai');
+      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, []);
+    });
     const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
-    if (lastAI) this.updateCodePanel(lastAI.content);
-    else this.sidePanel.classList.add('hidden');
+    if (lastAI) this.showCodeInPanel(lastAI.content);
+    else { this.sidePanel.classList.add('hidden'); this.currentPanelState = null; }
     this.loadHistory();
   }
 }
 
-// Load Puter.js only after our own script defines the class, and only then boot.
-// This keeps the boot order explicit: CSP → DOM → Puter → app.
+/* copy helper for chat code blocks */
+window.__copyCode = (btn) => {
+  const pre = btn.closest('.code-block').querySelector('pre code');
+  navigator.clipboard.writeText(pre.textContent);
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1200);
+};
+
 window.addEventListener('load', () => {
   if (typeof window.puter === 'undefined') {
-    console.error('Puter.js failed to load. Check: (1) CSP meta is the first <head> element; (2) https://js.puter.com/v2/ returns 200 in Network tab; (3) no browser extension is blocking it.');
+    console.error('Puter.js failed to load. Verify CSP meta is first in <head>, and js.puter.com/v2/ is 200.');
     document.getElementById('usageText').textContent = 'Puter unavailable — check console';
     return;
   }
   new AIChatApp();
 });
 </script>
-
-<!-- Puter.js must be loaded; no `integrity` attr because the CDN rotates builds. -->
 <script src="https://js.puter.com/v2/"></script>
 </body>
 </html>
