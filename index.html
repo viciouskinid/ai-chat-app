@@ -1,17 +1,15 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-<!-- CSP: wss:// for Socket.IO, font-src for Puter fonts, unsafe-eval for Puter.js -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com wss://api.puter.com wss://*.puter.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://js.puter.com https://fonts.gstatic.com https://fonts.googleapis.com; img-src 'self' data: blob:; frame-src 'self' data: blob:; child-src 'self' data: blob:;">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AI Chat</title>
+<title>AI Chat · Puter</title>
 <style>
 :root{
   --bg:#faf9f5;--surface-0:#ffffff;--surface-1:#f5f4ee;--surface-2:#ecebe3;--surface-3:#e4e2d7;
   --text-primary:#1a1a1a;--text-secondary:#5c5a54;--text-muted:#9a978e;
   --border:#e5e3d9;--border-strong:#d6d3c6;--accent:#d97757;--accent-hover:#c96647;
-  --danger:#c0392b;--ok:#2e7d32;--warn:#e67e22;
   --user-bubble:#f0eee6;--code-bg:#f7f6f0;--code-border:#e0ddd2;
   --font-ui:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
   --font-serif:Georgia,'Times New Roman',serif;
@@ -23,14 +21,17 @@
   --bg:#1a1915;--surface-0:#22211d;--surface-1:#2a2924;--surface-2:#35332c;--surface-3:#3f3d35;
   --text-primary:#f0eee6;--text-secondary:#b8b5a8;--text-muted:#7d7a6e;
   --border:#3a3830;--border-strong:#4a4840;--accent:#d97757;--accent-hover:#e88a6c;
-  --danger:#e05252;--ok:#66bb6a;--warn:#ffa726;
   --user-bubble:#35332c;--code-bg:#1e1d19;--code-border:#3a3830;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);min-height:100vh;overflow:hidden;display:flex;justify-content:center;align-items:center;padding:16px;transition:background .2s,color .2s}
 .app-layout{display:flex;width:100%;max-width:1500px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border);position:relative;flex-direction:column}
-.banner{display:none;padding:10px 16px;background:var(--danger);color:#fff;font-size:.82rem;text-align:center;font-weight:500}
+.banner{display:none;padding:10px 16px;background:var(--danger,#c0392b);color:#fff;font-size:.82rem;text-align:center;font-weight:500}
 .banner.visible{display:block}
+.loading-banner{display:none;padding:8px 16px;background:var(--surface-2);color:var(--text-secondary);font-size:.8rem;text-align:center;border-bottom:1px solid var(--border)}
+.loading-banner.visible{display:block}
+.loading-banner .spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
 .main-row{display:flex;flex:1;min-height:0;position:relative}
 /* Sidebar */
 .sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .15s ease}
@@ -61,18 +62,20 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .top-bar button.hidden{display:none}
 .usage-bar{display:flex;gap:14px;align-items:center;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap}
 .usage-bar b{color:var(--text-secondary);font-weight:600}
-.usage-bar .err{color:var(--danger);font-weight:600}
+.usage-bar .err{color:#c0392b;font-weight:600}
 .chat-messages{flex:1;padding:28px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;background:var(--bg);position:relative}
 .welcome{text-align:center;color:var(--text-muted);margin:auto;padding:40px}
 .welcome h1{font-family:var(--font-serif);font-weight:400;font-size:2.2rem;margin-bottom:8px;color:var(--text-primary)}
 .welcome p{font-size:1rem;color:var(--text-secondary)}
-.welcome .warn{color:var(--danger);font-weight:600}
 .message{max-width:82%;padding:14px 18px;border-radius:var(--radius);line-height:1.6;font-size:.95rem}
 .user-message{background:var(--user-bubble);align-self:flex-end;border-bottom-right-radius:4px}
 .ai-message{background:var(--surface-0);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px;width:82%}
-.ai-message.error{border-color:var(--danger)}
+.ai-message.error{border-color:#c0392b}
 .message-sender{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono)}
 .message-content{white-space:pre-wrap;word-break:break-word}
+.reasoning{margin:8px 0;border:1px solid var(--border);border-radius:8px;background:var(--surface-1);overflow:hidden}
+.reasoning summary{padding:6px 12px;font-size:.75rem;color:var(--text-secondary);cursor:pointer;user-select:none;background:var(--surface-2)}
+.reasoning pre{padding:10px 12px;font-family:var(--font-mono);font-size:.78rem;line-height:1.5;color:var(--text-primary);white-space:pre-wrap;max-height:220px;overflow:auto}
 .code-block{margin:10px 0;border:1px solid var(--code-border);border-radius:8px;overflow:hidden;background:var(--code-bg)}
 .code-block-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--surface-2);font-size:.72rem;color:var(--text-secondary);border-bottom:1px solid var(--code-border)}
 .code-block-header button{background:none;border:none;font-size:.72rem;color:var(--accent);cursor:pointer;text-decoration:underline}
@@ -131,19 +134,34 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .side-tab[hidden]{display:none}
 .preview-frame{flex:1;border:none;background:#fff;width:100%;height:100%}
 .code-preview{flex:1;padding:16px;overflow:auto;font-family:var(--font-mono);font-size:.78rem;line-height:1.5;background:var(--code-bg);white-space:pre-wrap;word-break:break-all}
-.raw-viewer,.log-viewer{flex:1;padding:16px;overflow:auto;font-family:var(--font-mono);font-size:.72rem;line-height:1.6;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;background:var(--code-bg)}
-.raw-viewer h4,.log-viewer h4{font-family:var(--font-ui);font-size:.8rem;margin:14px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
-.raw-viewer .chunk,.log-viewer .entry{background:var(--surface-2);border-radius:4px;padding:6px 8px;margin:4px 0;border-left:2px solid var(--accent)}
-.log-viewer .entry.ok{border-left-color:var(--ok)}
-.log-viewer .entry.warn{border-left-color:var(--warn)}
-.log-viewer .entry.err{border-left-color:var(--danger)}
+.raw-viewer,.log-viewer,.settings-viewer{flex:1;padding:16px;overflow:auto;font-family:var(--font-ui);font-size:.82rem;line-height:1.6;color:var(--text-primary);background:var(--surface-0)}
+.raw-viewer h4,.log-viewer h4,.settings-viewer h4{font-family:var(--font-ui);font-size:.78rem;margin:14px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.raw-viewer .chunk,.log-viewer .entry{background:var(--surface-2);border-radius:4px;padding:6px 8px;margin:4px 0;border-left:2px solid var(--accent);font-family:var(--font-mono);font-size:.72rem;white-space:pre-wrap;word-break:break-word}
+.log-viewer .entry.ok{border-left-color:#2e7d32}
+.log-viewer .entry.warn{border-left-color:#e67e22}
+.log-viewer .entry.err{border-left-color:#c0392b}
 .log-viewer .entry .meta{display:flex;justify-content:space-between;font-size:.66rem;color:var(--text-muted);margin-bottom:4px}
+.settings-viewer details{border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin:6px 0;background:var(--surface-1)}
+.settings-viewer summary{cursor:pointer;font-size:.82rem;color:var(--text-primary)}
+.settings-viewer .k{color:var(--text-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.4px}
+.settings-viewer .v{font-family:var(--font-mono);font-size:.78rem;word-break:break-all}
+/* Modal */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--surface-0);border:1px solid var(--border);border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+.modal-header h2{font-size:1rem;font-weight:600}
+.modal-body{padding:18px;overflow:auto}
+.modal-body h4{font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin:14px 0 6px}
+.modal-body .row{font-size:.82rem;margin:4px 0}
+.modal-body .row b{color:var(--text-primary)}
 @media(max-width:900px){.sidebar{display:none}.side-panel{width:340px}.resizer{display:none}}
 @media(max-width:600px){body{padding:0}.app-layout{height:100vh;border-radius:0;border:none}.side-panel{display:none}.message{max-width:92%}.ai-message{width:92%}}
 </style>
 </head>
 <body>
 <div class="app-layout">
+  <div class="loading-banner" id="loadingBanner"><span class="spinner"></span><span id="loadingText">Connecting to Puter…</span></div>
   <div class="banner" id="banner"></div>
   <div class="main-row">
     <aside class="sidebar" id="sidebar">
@@ -170,6 +188,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
           <span id="usageText">Usage loading…</span>
           <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.000000</b></span>
           <button id="refreshUsageBtn" title="Refresh Puter quota">↻</button>
+          <button id="settingsBtn" title="Settings">⚙</button>
         </div>
         <div style="display:flex;gap:4px">
           <button id="toggleLogBtn" class="hidden" title="Show code panel">Code</button>
@@ -216,8 +235,19 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
         <div class="side-tab" id="tab-code" hidden><pre class="code-preview"><code id="codeContent"></code></pre></div>
         <div class="side-tab" id="tab-raw" hidden><div class="raw-viewer" id="rawViewer"></div></div>
         <div class="side-tab" id="tab-log" hidden><div class="log-viewer" id="logViewer"></div></div>
+        <div class="side-tab" id="tab-settings" hidden><div class="settings-viewer" id="settingsViewer"></div></div>
       </div>
     </aside>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Settings · Account & Models</h2>
+      <button class="side-close" id="closeSettingsBtn" title="Close">×</button>
+    </div>
+    <div class="modal-body" id="settingsModalBody"></div>
   </div>
 </div>
 
@@ -246,7 +276,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
   });
 })();
 
-/* ---------- NETWORK LOG (fetch + xhr) ---------- */
+/* ---------- NETWORK LOG ---------- */
 window.__netLog = [];
 (function(){
   const origFetch = window.fetch;
@@ -273,7 +303,6 @@ window.__netLog = [];
       throw err;
     }
   };
-
   const XO = window.XMLHttpRequest;
   if (XO) {
     const open = XO.prototype.open;
@@ -305,782 +334,4 @@ const PROVIDER_LABELS = {
   zhipu:'Zhipu','z-ai':'Z.AI',kimi:'Kimi',microsoft:'Microsoft',
   perplexity:'Perplexity',together:'Together','together-ai':'Together',
   togetherai:'Together',openrouter:'OpenRouter',infron:'Infron',
-  glm:'Zhipu',baidu:'Baidu',bytedance:'ByteDance',stepfun:'StepFun',
-  nvidia:'NVIDIA',amazon:'Amazon',ai21:'AI21',reka:'Reka',sakana:'Sakana'
-};
-function providerLabel(p) {
-  if (!p) return 'Other';
-  const k = String(p).toLowerCase();
-  return PROVIDER_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1));
-}
-function inferProvider(id) {
-  const s = String(id || '').toLowerCase();
-  if (s.startsWith('claude') || s.startsWith('infron:anthropic') || s.startsWith('openrouter:anthropic')) return 'anthropic';
-  if (s.startsWith('gpt') || s.startsWith('o1') || s.startsWith('o3') || s.startsWith('o4') || s.includes('/openai/')) return 'openai';
-  if (s.startsWith('gemini') || s.startsWith('gemma') || s.includes('/google/')) return 'google';
-  if (s.startsWith('deepseek') || s.includes('/deepseek')) return 'deepseek';
-  if (s.startsWith('qwen') || s.includes('/qwen')) return 'alibaba';
-  if (s.startsWith('glm') || s.includes('/z-ai') || s.includes('/zhipu') || s.startsWith('zhipu')) return 'zhipu';
-  if (s.startsWith('kimi') || s.includes('/moonshot')) return 'moonshot';
-  if (s.startsWith('minimax') || s.includes('/minimax')) return 'minimax';
-  if (s.startsWith('llama') || s.startsWith('meta-llama') || s.includes('/meta')) return 'meta';
-  if (s.startsWith('mistral') || s.includes('/mistral')) return 'mistral';
-  if (s.startsWith('grok') || s.includes('/x-ai')) return 'xai';
-  if (s.startsWith('command') || s.includes('/cohere')) return 'cohere';
-  if (s.startsWith('nova') || s.includes('/amazon')) return 'amazon';
-  if (s.startsWith('sonar') || s.includes('/perplexity')) return 'perplexity';
-  if (s.includes('openrouter')) return 'openrouter';
-  if (s.includes('infron')) return 'infron';
-  if (s.includes('togetherai') || s.includes('together')) return 'togetherai';
-  if (s.includes('seed') || s.includes('bytedance')) return 'bytedance';
-  if (s.startsWith('step-') || s.includes('/stepfun')) return 'stepfun';
-  if (s.includes('nemotron') || s.includes('/nvidia')) return 'nvidia';
-  if (s.includes('muse')) return 'meta';
-  if (s.includes('fugu') || s.includes('sakana')) return 'sakana';
-  return 'other';
-}
-
-/* ---------- APP ---------- */
-class AIChatApp {
-  constructor() {
-    this.$ = id => document.getElementById(id);
-    this.chatMessages = this.$('chatMessages');
-    this.chatInput = this.$('chatInput');
-    this.sendBtn = this.$('sendBtn');
-    this.providerSelect = this.$('providerSelect');
-    this.modelSelect = this.$('modelSelect');
-    this.modelRow = this.$('modelRow');
-    this.streamingEl = this.$('streamingIndicator');
-    this.usageText = this.$('usageText');
-    this.totalUsage = this.$('totalUsage');
-    this.historyList = this.$('historyList');
-    this.sidebar = this.$('sidebar');
-    this.sidePanel = this.$('sidePanel');
-    this.codeContent = this.$('codeContent');
-    this.previewFrame = this.$('previewFrame');
-    this.rawViewer = this.$('rawViewer');
-    this.logViewer = this.$('logViewer');
-    this.codeToggleBtn = this.$('toggleLogBtn');
-    this.netLogToggleBtn = this.$('toggleNetLogBtn');
-    this.attachmentsEl = this.$('attachments');
-    this.scrollHelper = this.$('scrollHelper');
-    this.tabStrip = this.$('tabStrip');
-    this.sideTitle = this.$('sideTitle');
-    this.copyBtn = this.$('copyBtn');
-    this.downloadBtn = this.$('downloadBtn');
-    this.banner = this.$('banner');
-
-    this.isProcessing = false;
-    this.currentChatId = null;
-    this.chats = JSON.parse(localStorage.getItem('puter-chats') || '{}');
-    this.attachments = [];
-    this.modelsByProvider = {};
-    this.currentPanelState = null;
-    this.currentRaw = null;
-    this.activeTab = null;
-    this.availableTabs = [];
-
-    this.init();
-  }
-  puterReady() { return typeof window.puter !== 'undefined'; }
-
-  showBanner(msg) { this.banner.textContent = msg; this.banner.classList.add('visible'); }
-  hideBanner() { this.banner.classList.remove('visible'); }
-
-  async init() {
-    this.bindEvents();
-    this.loadHistory();
-    this.loadTheme();
-    this.setupTextarea();
-    this.setupResizers();
-    this.setupScrollHelper();
-    this.updateTotalUsage();
-    this.renderNetworkLog();
-
-    if (!this.puterReady()) {
-      this.showBanner('Puter.js did not load — CSP or network issue. Open Log for details.');
-      this.usageText.innerHTML = '<span class="err">Puter unavailable</span>';
-      this.providerSelect.innerHTML = '<option value="">Puter unavailable</option>';
-      this.sendBtn.disabled = true;
-      this.openTabs(['log'], 'log');
-      return;
-    }
-    let signedIn = false;
-    try { signedIn = await puter.auth.isSignedIn(); } catch (_) {}
-    if (!signedIn) { this.showSignInPrompt(); return; }
-    await this.afterSignIn();
-  }
-
-  bindEvents() {
-    this.sendBtn.addEventListener('click', e => { e.preventDefault(); this.handleSend(); });
-    this.$('refreshUsageBtn').addEventListener('click', () => this.loadUsage());
-    this.$('toggleSidebarBtn').addEventListener('click', () => this.sidebar.classList.toggle('hidden'));
-    this.codeToggleBtn.addEventListener('click', () => this.openTabs(['preview','code'], 'preview'));
-    this.netLogToggleBtn.addEventListener('click', () => this.openTabs(['log'], 'log'));
-    this.$('closeSidePanelBtn').addEventListener('click', () => this.sidePanel.classList.add('hidden'));
-
-    this.$('newChatRow').addEventListener('click', () => this.newChat());
-    this.$('searchRow').addEventListener('click', () => this.focusSearch());
-
-    this.copyBtn.addEventListener('click', () => this.copyCurrent());
-    this.downloadBtn.addEventListener('click', () => this.downloadCurrent());
-    this.$('diagnosticsBtn').addEventListener('click', () => this.copyDiagnostics());
-
-    this.chatInput.addEventListener('input', () => {
-      this.chatInput.style.height = 'auto';
-      this.chatInput.style.height = Math.min(this.chatInput.scrollHeight, 200) + 'px';
-      this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
-    });
-    this.chatInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
-    });
-    this.chatInput.addEventListener('paste', e => {
-      const text = e.clipboardData.getData('text');
-      if (text.length > 500) { e.preventDefault(); this.addAttachment(text); }
-    });
-
-    this.$('toggleThemeBtn').addEventListener('click', () => {
-      const cur = document.documentElement.getAttribute('data-theme');
-      const next = cur === 'light' ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      localStorage.setItem('puter-theme', next);
-    });
-
-    this.providerSelect.addEventListener('change', () => {
-      const p = this.providerSelect.value;
-      this.modelSelect.innerHTML = '';
-      if (!p) { this.modelSelect.innerHTML = '<option value="">Model…</option>'; return; }
-      const models = this.modelsByProvider[p] || [];
-      models.forEach(m => {
-        const o = document.createElement('option');
-        o.value = m.id; o.textContent = m.name || m.id;
-        this.modelSelect.appendChild(o);
-      });
-      if (models.length) this.modelSelect.value = models[0].id;
-      const saved = localStorage.getItem('puter-model');
-      if (saved && models.some(m => m.id === saved)) this.modelSelect.value = saved;
-    });
-    this.modelSelect.addEventListener('change', () => localStorage.setItem('puter-model', this.modelSelect.value));
-
-    document.addEventListener('keydown', e => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); this.newChat(); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.focusSearch(); }
-    });
-
-    // refresh quota countdown once a minute
-    setInterval(() => { if (this.usageText.dataset.quota) this.loadUsage(); }, 60000);
-  }
-
-  openTabs(tabs, active) {
-    this.availableTabs = tabs;
-    this.activeTab = active;
-    this.renderTabs();
-    this.sidePanel.classList.remove('hidden');
-    this.$('tab-preview').hidden = active !== 'preview';
-    this.$('tab-code').hidden = active !== 'code';
-    this.$('tab-raw').hidden = active !== 'raw';
-    this.$('tab-log').hidden = active !== 'log';
-    if (active === 'raw') this.renderRawViewer(this.currentRaw);
-    if (active === 'log') this.renderNetworkLog();
-    this.updateCopyLabel();
-    this.updateSideTitle();
-  }
-
-  renderTabs() {
-    this.tabStrip.innerHTML = '';
-    this.availableTabs.forEach(t => {
-      const b = document.createElement('button');
-      b.dataset.tab = t;
-      b.textContent = t === 'raw' ? 'Response' : (t.charAt(0).toUpperCase() + t.slice(1));
-      if (t === this.activeTab) b.classList.add('active');
-      b.addEventListener('click', () => this.switchTab(t));
-      this.tabStrip.appendChild(b);
-    });
-  }
-
-  switchTab(t) {
-    this.activeTab = t;
-    this.renderTabs();
-    this.$('tab-preview').hidden = t !== 'preview';
-    this.$('tab-code').hidden = t !== 'code';
-    this.$('tab-raw').hidden = t !== 'raw';
-    this.$('tab-log').hidden = t !== 'log';
-    if (t === 'raw') this.renderRawViewer(this.currentRaw);
-    if (t === 'log') this.renderNetworkLog();
-    this.updateCopyLabel();
-    this.updateSideTitle();
-  }
-
-  updateSideTitle() {
-    if (this.activeTab === 'raw' && this.currentRaw) {
-      this.sideTitle.innerHTML = `<b>Response</b><span class="sep">·</span>${this.currentRaw.model || ''}`;
-    } else if (this.activeTab === 'log') {
-      this.sideTitle.innerHTML = `<b>Network log</b>`;
-    } else if (this.currentPanelState) {
-      this.sideTitle.innerHTML = `<b>${this.currentPanelState.fileName}</b><span class="sep">·</span>${this.currentPanelState.lang}`;
-    } else {
-      this.sideTitle.innerHTML = '';
-    }
-  }
-
-  updateCopyLabel() {
-    const map = { preview: 'Copy', code: 'Copy', raw: 'Copy JSON', log: 'Copy Log' };
-    this.copyBtn.textContent = map[this.activeTab] || 'Copy';
-  }
-
-  copyCurrent() {
-    let text = '';
-    if (this.activeTab === 'raw') text = JSON.stringify(this.currentRaw, null, 2);
-    else if (this.activeTab === 'log') text = this.formatNetLog();
-    else text = this.codeContent.textContent;
-    navigator.clipboard.writeText(text);
-    this.copyBtn.textContent = 'Copied!';
-    setTimeout(() => this.updateCopyLabel(), 1500);
-  }
-
-  downloadCurrent() {
-    const s = this.currentPanelState; if (!s) return;
-    const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[s.lang] || 'txt';
-    const blob = new Blob([s.code], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${s.fileName}.${ext}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }
-
-  formatNetLog() {
-    return window.__netLog.map(e => {
-      let s = `[${e.ts}] ${e.method} ${e.url}\n`;
-      s += `  → status: ${e.status ?? '?'} · ${e.ms ?? '?'}ms\n`;
-      if (e.reqBody) s += `  → request: ${e.reqBody}\n`;
-      if (e.resBody) s += `  → response: ${e.resBody}\n`;
-      if (e.error) s += `  → error: ${e.error}\n`;
-      return s;
-    }).join('\n');
-  }
-
-  async copyDiagnostics() {
-    const diag = {
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent,
-      url: location.href,
-      theme: document.documentElement.getAttribute('data-theme'),
-      puterLoaded: typeof window.puter !== 'undefined',
-      pageHTML: document.documentElement.outerHTML,
-      networkLog: window.__netLog,
-      chats: this.chats,
-      models: this.modelsByProvider
-    };
-    await navigator.clipboard.writeText(JSON.stringify(diag, null, 2));
-    this.$('diagnosticsBtn').textContent = 'Copied!';
-    setTimeout(() => this.$('diagnosticsBtn').textContent = 'Diag', 1500);
-  }
-
-  loadTheme() { const s = localStorage.getItem('puter-theme'); if (s) document.documentElement.setAttribute('data-theme', s); }
-  setupTextarea() { this.chatInput.style.height = 'auto'; }
-
-  addAttachment(text) {
-    const id = Date.now() + Math.random();
-    const kb = (text.length / 1024).toFixed(2);
-    this.attachments.push({ id, name: `pasted-${this.attachments.length + 1}.txt`, size: `${kb} KB`, text });
-    this.renderAttachments();
-    this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
-  }
-  removeAttachment(id) {
-    this.attachments = this.attachments.filter(a => a.id !== id);
-    this.renderAttachments();
-    this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
-  }
-  clearAttachments() {
-    this.attachments = [];
-    this.renderAttachments();
-    this.sendBtn.disabled = true;
-  }
-  renderAttachments() {
-    this.attachmentsEl.innerHTML = '';
-    if (!this.attachments.length) { this.attachmentsEl.classList.remove('active'); return; }
-    this.attachmentsEl.classList.add('active');
-    this.attachments.forEach(a => {
-      const tile = document.createElement('div');
-      tile.className = 'attachment-tile';
-      tile.innerHTML = `<div class="icon">TXT</div><div class="info"><div class="name">${a.name}</div><div class="size">${a.size}</div></div><button class="remove" title="Remove">×</button>`;
-      tile.querySelector('.remove').addEventListener('click', () => this.removeAttachment(a.id));
-      this.attachmentsEl.appendChild(tile);
-    });
-  }
-
-  showSignInPrompt() {
-    const w = this.$('welcome');
-    if (w) {
-      w.innerHTML = `<h1>Sign in</h1><p class="warn">Not signed in — connect your Puter account to use AI models.</p>
-        <button id="signInBtn" style="margin-top:16px;padding:10px 24px;border:none;border-radius:20px;background:var(--accent);color:#fff;font-size:.95rem;cursor:pointer;">Sign in with Puter</button>`;
-      this.$('signInBtn').addEventListener('click', () => this.handleSignIn());
-    }
-    this.usageText.innerHTML = '<span class="err">Not signed in</span>';
-    this.chatInput.disabled = true; this.sendBtn.disabled = true;
-  }
-  async handleSignIn() {
-    if (!this.puterReady()) return;
-    try { await puter.auth.signIn({ attempt_temp_user_creation: true }); await this.afterSignIn(); }
-    catch (e) { console.error(e); this.usageText.innerHTML = '<span class="err">Sign in failed</span>'; }
-  }
-  async afterSignIn() {
-    this.$('welcome')?.remove();
-    this.chatInput.disabled = false; this.sendBtn.disabled = true;
-    try { await this.loadModels(); } catch (e) { console.error(e); }
-    try { await this.loadUsage(); } catch (e) { console.error(e); }
-  }
-
-  /* Only list models that Puter can actually chat with. */
-  async loadModels() {
-    if (!this.puterReady()) return;
-    this.modelsByProvider = {};
-    try {
-      const models = await puter.ai.listModels();
-      (Array.isArray(models) ? models : []).forEach(m => {
-        const id = m.id || m.name;
-        if (!id) return;
-        const hasPrefix = /[:/]/.test(id);
-        const declared = m.provider && String(m.provider).toLowerCase();
-        let key;
-        if (declared) key = declared;
-        else if (hasPrefix) key = id.split(/[:/]/)[0].toLowerCase();
-        else return;
-        key = inferProvider(key) || key;
-        (this.modelsByProvider[key] ||= []).push({ id, name: m.name || id });
-      });
-    } catch (e) {
-      console.warn('listModels failed', e);
-      this.usageText.innerHTML = '<span class="err">Model list failed — see Log</span>';
-      this.modelRow.classList.add('hidden');
-      this.openTabs(['log'], 'log');
-      return;
-    }
-
-    const providers = Object.keys(this.modelsByProvider).sort();
-    if (!providers.length) {
-      this.usageText.innerHTML = '<span class="err">No usable models returned — see Log</span>';
-      this.modelRow.classList.add('hidden');
-      this.openTabs(['log'], 'log');
-      return;
-    }
-
-    // Probe first model per provider
-    const working = {};
-    for (const p of providers) {
-      const m = this.modelsByProvider[p][0];
-      try {
-        await puter.ai.chat('hi', { model: m.id, stream: false });
-        working[p] = this.modelsByProvider[p];
-      } catch (e) {
-        console.warn('provider failed probe:', p, m.id, e?.message || e);
-      }
-    }
-    const okProviders = Object.keys(working).sort();
-    if (!okProviders.length) {
-      this.usageText.innerHTML = '<span class="err">All providers failed probe — see Log</span>';
-      this.modelRow.classList.add('hidden');
-      this.openTabs(['log'], 'log');
-      return;
-    }
-    this.modelsByProvider = working;
-    this.modelRow.classList.remove('hidden');
-    this.hideBanner();
-    this.providerSelect.innerHTML = '';
-    okProviders.forEach(p => {
-      const o = document.createElement('option');
-      o.value = p; o.textContent = providerLabel(p);
-      this.providerSelect.appendChild(o);
-    });
-    const saved = localStorage.getItem('puter-model');
-    let restored = false;
-    if (saved) {
-      for (const p of okProviders) {
-        if (this.modelsByProvider[p].some(m => m.id === saved)) {
-          this.providerSelect.value = p;
-          this.providerSelect.dispatchEvent(new Event('change'));
-          this.modelSelect.value = saved; restored = true; break;
-        }
-      }
-    }
-    if (!restored) {
-      this.providerSelect.value = okProviders[0];
-      this.providerSelect.dispatchEvent(new Event('change'));
-    }
-  }
-
-  async loadUsage() {
-    if (!this.puterReady()) { this.usageText.innerHTML = '<span class="err">Puter unavailable</span>'; return null; }
-    try {
-      const usage = await puter.auth.getMonthlyUsage();
-      const info = usage?.allowanceInfo;
-      if (!info) { this.usageText.innerHTML = '<span class="err">Usage unavailable</span>'; return null; }
-      const t = info.monthUsageAllowance, r = info.remaining;
-      const p = t > 0 ? ((t - r) / t * 100) : 0;
-      const reset = this.formatReset(info.resetAt || usage.resetAt || usage.nextResetAt);
-      this.usageText.dataset.quota = '1';
-      this.usageText.innerHTML =
-        `Quota: ${p.toFixed(2)}% used · $${(r / 1e8).toFixed(6)} left` +
-        (reset ? ` · <span title="Resets at ${reset}">resets in ${reset}</span>` : '');
-      return { total: t, remaining: r, percentUsed: p };
-    } catch (e) {
-      this.usageText.innerHTML = '<span class="err">Usage error — see Log</span>';
-      return null;
-    }
-  }
-
-  formatReset(ts) {
-    if (!ts) return '';
-    const ms = typeof ts === 'number' ? ts : Date.parse(ts);
-    if (!ms || isNaN(ms)) return '';
-    const diff = ms - Date.now();
-    if (diff <= 0) return 'now';
-    const d = Math.floor(diff / 86400000);
-    const h = Math.floor((diff % 86400000) / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    if (d > 0) return `${d}d ${h}h`;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m`;
-  }
-
-  updateTotalUsage() {
-    let tok = 0, cost = 0;
-    for (const chat of Object.values(this.chats)) {
-      tok += chat.totalTokens || 0;
-      cost += chat.totalCost || 0;
-    }
-    this.totalUsage.innerHTML = `Σ <b>${tok.toLocaleString()}</b> tok · <b>$${cost.toFixed(6)}</b>`;
-  }
-
-  refreshCodeButton() {
-    const chat = this.chats[this.currentChatId];
-    const hasCode = !!(chat && chat.messages.some(m => m.role === 'ai' && this.extractCode(m.content)));
-    this.codeToggleBtn.classList.toggle('hidden', !hasCode);
-    this.netLogToggleBtn.classList.toggle('hidden', window.__netLog.length === 0);
-  }
-
-  async handleSend() {
-    if (this.isProcessing) return;
-    if (!this.puterReady()) {
-      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai', 'error');
-      this.openTabs(['log'], 'log');
-      return;
-    }
-    if (!this.modelSelect.value) {
-      this.addMessageToUI('No model selected — the model list failed to load. Open Log for details.', 'ai', 'error');
-      this.openTabs(['log'], 'log');
-      return;
-    }
-    let msg = this.chatInput.value.trim();
-    let prefix = '';
-    if (this.attachments.length) {
-      prefix = this.attachments.map(a => `--- ${a.name} (${a.size}) ---\n${a.text}`).join('\n\n') + '\n\n';
-      this.clearAttachments();
-    }
-    const fullMsg = prefix + msg;
-    if (!fullMsg.trim()) return;
-
-    this.chatInput.value = ''; this.chatInput.style.height = 'auto';
-    this.sendBtn.disabled = true; this.isProcessing = true;
-    this.streamingEl.classList.add('active');
-
-    if (!this.currentChatId) {
-      this.currentChatId = Date.now().toString();
-      this.chats[this.currentChatId] = { title: (msg || prefix).substring(0, 30), messages: [], totalTokens: 0, totalCost: 0 };
-    }
-    this.addMessageToUI(fullMsg, 'user', 'You');
-    this.chats[this.currentChatId].messages.push({ role: 'user', content: fullMsg });
-    this.saveChats();
-
-    const before = await this.loadUsage();
-
-    const model = this.modelSelect.value;
-    const raw = [];
-    let usageInfo = null;
-
-    try {
-      const response = await puter.ai.chat(fullMsg, { model, stream: true });
-      const aiEl = this.addMessageToUI('', 'ai', model);
-      const contentEl = aiEl.querySelector('.message-content');
-      let full = '';
-      for await (const part of response) {
-        raw.push(part);
-        if (part?.usage) usageInfo = part.usage;
-        if (part?.text) {
-          full += part.text;
-          contentEl.innerHTML = this.renderMarkdown(full);
-          this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-        }
-      }
-      this.chats[this.currentChatId].messages.push({ role: 'ai', content: full, usage: usageInfo, model });
-      if (usageInfo) {
-        const toks = (usageInfo.input_tokens || 0) + (usageInfo.output_tokens || 0);
-        const usd = (usageInfo.usd_cents || 0) / 100;
-        this.chats[this.currentChatId].totalTokens = (this.chats[this.currentChatId].totalTokens || 0) + toks;
-        this.chats[this.currentChatId].totalCost = (this.chats[this.currentChatId].totalCost || 0) + usd;
-      }
-      this.saveChats();
-      this.updateTotalUsage();
-
-      let deltaPct = 0;
-      const after = await this.loadUsage();
-      if (before && after && after.total > 0) {
-        deltaPct = after.percentUsed - before.percentUsed;
-      }
-      this.updateMsgMeta(aiEl, usageInfo, raw, model, deltaPct);
-
-      this.showCodeInPanel(full);
-      this.refreshCodeButton();
-      this.renderNetworkLog();
-      console.log('[Puter raw response]', raw);
-    } catch (err) {
-      console.error(err);
-      this.addMessageToUI(`Error: ${err.message || err}`, 'ai', 'error');
-    } finally {
-      this.streamingEl.classList.remove('active');
-      this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
-      this.isProcessing = false; this.chatInput.focus();
-      this.renderNetworkLog();
-    }
-  }
-
-  renderMarkdown(text) {
-    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const re = /```(\w*)\n([\s\S]*?)```/g;
-    let out = '', last = 0, m;
-    while ((m = re.exec(text)) !== null) {
-      out += esc(text.slice(last, m.index));
-      const lang = m[1] || 'text';
-      const code = m[2];
-      out += `<div class="code-block"><div class="code-block-header"><span>${lang}</span><button onclick="window.__copyCode(this)">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
-      last = m.index + m[0].length;
-    }
-    out += esc(text.slice(last));
-    return out;
-  }
-
-  updateMsgMeta(aiEl, usage, raw, model, deltaPct) {
-    if (!aiEl) return;
-    const inTok = usage ? (usage.input_tokens || 0) : 0;
-    const outTok = usage ? (usage.output_tokens || 0) : 0;
-    const toks = inTok + outTok;
-    const cents = usage ? (usage.usd_cents || 0) : 0;
-    const usd = cents / 100;
-    const micro = Math.round(cents * 10000);
-    const delta = typeof deltaPct === 'number' ? deltaPct : null;
-    const meta = document.createElement('div');
-    meta.className = 'msg-meta';
-    meta.innerHTML = `
-      <span>
-        ${delta != null ? `<span class="quota-delta">−${delta.toFixed(2)}% quota</span> · ` : ''}
-        ${inTok}↑ / ${outTok}↓ · ${toks} tok · $${usd.toFixed(6)}${micro ? ` (${micro} µ¢)` : ''}
-      </span>
-      <button type="button" class="view-raw-btn">View response</button>
-    `;
-    meta.querySelector('.view-raw-btn').addEventListener('click', () => {
-      this.currentRaw = { model, usage, chunks: raw };
-      this.openTabs(['raw'], 'raw');
-    });
-    aiEl.appendChild(meta);
-  }
-
-  renderRawViewer(raw) {
-    if (!raw) { this.rawViewer.textContent = 'No response selected.'; return; }
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    let html = '';
-    html += `<h4>Model</h4><div class="chunk">${esc(raw.model || 'unknown')}</div>`;
-    html += `<h4>Usage</h4><div class="chunk">${esc(JSON.stringify(raw.usage || {}, null, 2))}</div>`;
-    html += `<h4>Streamed chunks (${raw.chunks?.length || 0})</h4>`;
-    (raw.chunks || []).forEach((c, i) => {
-      html += `<div class="chunk"><b>#${i + 1}</b> ${esc(JSON.stringify(c))}</div>`;
-    });
-    html += `<h4>Full JSON</h4><div class="chunk">${esc(JSON.stringify(raw, null, 2))}</div>`;
-    this.rawViewer.innerHTML = html;
-  }
-
-  renderNetworkLog() {
-    if (!this.logViewer) return;
-    this.netLogToggleBtn.classList.toggle('hidden', window.__netLog.length === 0);
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    let html = `<h4>Network calls (${window.__netLog.length})</h4>`;
-    window.__netLog.forEach((e, i) => {
-      let cls = 'entry';
-      if (e.error) cls += ' err';
-      else if (e.status >= 500) cls += ' err';
-      else if (e.status >= 400) cls += ' warn';
-      else if (e.status >= 200 && e.status < 300) cls += ' ok';
-      html += `<div class="${cls}">
-        <div class="meta"><span>#${i + 1} ${esc(e.method)} ${esc(e.status ?? '?')}</span><span>${esc(e.ms ?? '?')}ms</span></div>
-        <div>${esc(e.url)}</div>
-        ${e.reqBody ? `<div style="margin-top:4px;color:var(--text-muted)">→ ${esc(e.reqBody)}</div>` : ''}
-        ${e.resBody ? `<div style="margin-top:4px;color:var(--text-muted)">← ${esc(e.resBody)}</div>` : ''}
-        ${e.error ? `<div style="color:var(--danger);margin-top:4px">${esc(e.error)}</div>` : ''}
-      </div>`;
-    });
-    this.logViewer.innerHTML = html;
-  }
-
-  showCodeInPanel(text) {
-    const found = this.extractCode(text);
-    if (!found) return;
-    this.currentPanelState = found;
-    this.codeContent.textContent = found.code;
-    if (found.lang === 'html' || /<!DOCTYPE html/i.test(found.code) || /<html[\s>]/i.test(found.code)) {
-      const safe = found.code.replace(/<\/script>/gi, '<\\/script>');
-      this.previewFrame.srcdoc = `<!DOCTYPE html><html><head><base target="_blank"></head><body>${safe}</body></html>`;
-    } else {
-      this.previewFrame.srcdoc = `<pre style="font-family:monospace;padding:16px;white-space:pre-wrap;">${found.code.replace(/</g,'&lt;')}</pre>`;
-    }
-    this.openTabs(['preview','code'], 'preview');
-  }
-
-  extractCode(text) {
-    if (!text) return null;
-    const re = /```(\w*)\n([\s\S]*?)```/g;
-    let m, last = '', lang = 'text';
-    while ((m = re.exec(text)) !== null) { lang = m[1] || 'text'; last = m[2]; }
-    if (!last) return null;
-    const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[lang] || 'txt';
-    return { code: last, lang, fileName: `code.${ext}` };
-  }
-
-  addMessageToUI(text, sender, label) {
-    this.$('welcome')?.remove();
-    const div = document.createElement('div');
-    div.className = `message ${sender}-message`;
-    if (label === 'error') div.classList.add('error');
-    const s = document.createElement('div'); s.className = 'message-sender';
-    s.textContent = label === 'error' ? 'Error' : (label || (sender === 'user' ? 'You' : 'AI'));
-    const c = document.createElement('div'); c.className = 'message-content';
-    if (sender === 'ai') c.innerHTML = this.renderMarkdown(text);
-    else c.textContent = text;
-    div.appendChild(s); div.appendChild(c);
-    this.chatMessages.appendChild(div);
-    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
-    return div;
-  }
-
-  newChat() {
-    this.currentChatId = null;
-    this.chatMessages.innerHTML = `<div class="welcome" id="welcome"><h1>AI Chat</h1><p>How can I help you today?</p></div>`;
-    this.clearAttachments(); this.sendBtn.disabled = true;
-    this.sidePanel.classList.add('hidden');
-    this.currentPanelState = null; this.currentRaw = null;
-    this.availableTabs = []; this.activeTab = null;
-    this.codeToggleBtn.classList.add('hidden');
-    this.loadHistory();
-    this.chatInput.focus();
-  }
-
-  saveChats() { localStorage.setItem('puter-chats', JSON.stringify(this.chats)); this.loadHistory(); }
-
-  loadHistory() {
-    this.historyList.innerHTML = '';
-    Object.entries(this.chats).sort((a,b)=>b[0]-a[0]).forEach(([id, chat]) => {
-      const item = document.createElement('div');
-      item.className = `history-item ${this.currentChatId===id?'active':''}`;
-      const toks = (chat.totalTokens||0).toLocaleString();
-      const cost = (chat.totalCost||0).toFixed(6);
-      item.innerHTML = `${chat.title || 'Untitled'}<div class="history-meta">${toks} tok · $${cost}</div>`;
-      item.addEventListener('click', () => this.loadChat(id));
-      this.historyList.appendChild(item);
-    });
-  }
-
-  loadChat(id) {
-    const chat = this.chats[id]; if (!chat) return;
-    this.currentChatId = id;
-    this.chatMessages.innerHTML = '';
-    chat.messages.forEach(m => {
-      const label = m.role === 'user' ? 'You' : (m.model || 'AI');
-      const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai', label);
-      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, [], m.model || 'AI', null);
-    });
-    const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
-    if (lastAI && this.extractCode(lastAI.content)) {
-      this.showCodeInPanel(lastAI.content);
-    } else {
-      this.sidePanel.classList.add('hidden');
-      this.currentPanelState = null;
-      this.availableTabs = []; this.activeTab = null;
-    }
-    this.refreshCodeButton();
-    this.loadHistory();
-  }
-
-  setupResizers() {
-    const makeResizer = (handle, target, side, varName) => {
-      let startX, startW;
-      const onDown = e => {
-        startX = e.clientX;
-        startW = target.getBoundingClientRect().width;
-        handle.classList.add('dragging');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-        e.preventDefault();
-      };
-      const onMove = e => {
-        const dx = e.clientX - startX;
-        let w = side === 'left' ? startW + dx : startW - dx;
-        w = Math.max(180, Math.min(700, w));
-        target.style.width = w + 'px';
-        document.documentElement.style.setProperty(varName, w + 'px');
-      };
-      const onUp = () => {
-        handle.classList.remove('dragging');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        localStorage.setItem('puter-' + varName, target.style.width);
-      };
-      handle.addEventListener('mousedown', onDown);
-    };
-    makeResizer(this.$('leftResizer'), this.sidebar, 'left', '--sidebar-w');
-    makeResizer(this.$('rightResizer'), this.sidePanel, 'right', '--sidepanel-w');
-
-    const lw = localStorage.getItem('puter---sidebar-w');
-    const rw = localStorage.getItem('puter---sidepanel-w');
-    if (lw) { this.sidebar.style.width = lw; document.documentElement.style.setProperty('--sidebar-w', lw); }
-    if (rw) { this.sidePanel.style.width = rw; document.documentElement.style.setProperty('--sidepanel-w', rw); }
-  }
-
-  setupScrollHelper() {
-    const check = () => {
-      const el = this.chatMessages;
-      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-      this.scrollHelper.classList.toggle('visible', !nearBottom && el.scrollHeight > el.clientHeight + 50);
-    };
-    this.chatMessages.addEventListener('scroll', check);
-    this.scrollHelper.addEventListener('click', () => {
-      this.chatMessages.scrollTo({ top: this.chatMessages.scrollHeight, behavior: 'smooth' });
-    });
-    setInterval(check, 800);
-  }
-}
-
-window.__copyCode = (btn) => {
-  const pre = btn.closest('.code-block').querySelector('pre code');
-  navigator.clipboard.writeText(pre.textContent);
-  btn.textContent = 'Copied!';
-  setTimeout(() => btn.textContent = 'Copy', 1200);
-};
-
-window.addEventListener('load', () => {
-  if (typeof window.puter === 'undefined') {
-    console.error('Puter.js failed to load. Verify CSP meta is first in <head>, and js.puter.com/v2/ is 200.');
-    const b = document.getElementById('banner');
-    if (b) { b.textContent = 'Puter.js did not load — CSP or network issue. Open Log for details.'; b.classList.add('visible'); }
-    const u = document.getElementById('usageText');
-    if (u) u.innerHTML = '<span style="color:#c0392b;font-weight:600">Puter unavailable</span>';
-    return;
-  }
-  new AIChatApp();
-});
-</script>
-<script src="https://js.puter.com/v2/"></script>
-</body>
-</html>
+  glm:'Zhipu',baidu:'Baid
