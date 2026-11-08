@@ -1,15 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
-<!-- CSP MUST BE THE FIRST ELEMENT IN <head>. Puter.js uses eval() internally;
-     without 'unsafe-eval' it never initializes and window.puter stays undefined. -->
-<meta http-equiv="Content-Security-Policy"
-      content="default-src 'self';
-               script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com;
-               connect-src 'self' https://api.puter.com https://js.puter.com;
-               style-src 'self' 'unsafe-inline';
-               img-src 'self' data:;
-               frame-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.puter.com; connect-src 'self' https://api.puter.com https://js.puter.com https://*.puter.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' data: blob:;">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AI Chat · Puter</title>
