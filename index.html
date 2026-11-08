@@ -176,6 +176,30 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .opt .opt-text small{font-size:.7rem;color:var(--text-muted);line-height:1.35}
 .opt select{background:var(--surface-1);color:var(--text-primary);border:1px solid var(--border-strong);border-radius:6px;padding:4px 6px;font-size:.78rem;max-width:230px}
 .opt-note{font-size:.76rem;color:var(--text-muted);margin:0 0 6px;line-height:1.45}
+
+.raw-text{margin:0;font-family:var(--font-mono);font-size:.8rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--text-primary)}
+.attach-btn{background:none;border:none;font-size:1.05rem;cursor:pointer;color:var(--text-secondary);padding:4px 8px;border-radius:6px}
+.attach-btn:hover{background:var(--surface-2);color:var(--text-primary)}
+.composer-box.dragover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.25)}
+.acct-wrap{position:relative}
+.acct-wrap>button{background:var(--surface-2);border:1px solid var(--border-strong);border-radius:20px;padding:3px 12px;font-size:.78rem;color:var(--text-primary);cursor:pointer}
+.acct-wrap>button:hover{background:var(--surface-3)}
+.acct-menu{position:absolute;top:calc(100% + 6px);left:0;width:340px;max-height:70vh;overflow:auto;background:var(--surface-0);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);z-index:40;padding:8px}
+.acct-menu[hidden]{display:none}
+.acct-item{padding:9px 10px;border-radius:8px;border:1px solid transparent;margin-bottom:4px;cursor:pointer}
+.acct-item:hover{background:var(--surface-1)}
+.acct-item.current{background:var(--surface-1);border-color:var(--border-strong);cursor:default}
+.acct-row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.84rem;color:var(--text-primary)}
+.acct-row .acct-x{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;line-height:1;padding:0 4px}
+.acct-row .acct-x:hover{color:var(--danger)}
+.acct-bar{height:5px;background:var(--surface-3);border-radius:3px;margin:6px 0 4px;overflow:hidden}
+.acct-bar i{display:block;height:100%;background:var(--accent)}
+.acct-bar i.low{background:var(--danger)}
+.acct-sub{font-size:.7rem;color:var(--text-muted);display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+.acct-foot{display:flex;gap:6px;border-top:1px solid var(--border);padding-top:8px;margin-top:6px}
+.acct-foot button{flex:1;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:6px;padding:5px 8px;font-size:.76rem;color:var(--text-primary);cursor:pointer}
+.acct-foot button:hover{background:var(--surface-3)}
+.acct-note{font-size:.68rem;color:var(--text-muted);padding:6px 4px 0;line-height:1.4}
 </style>
 </head>
 <body>
@@ -204,6 +228,10 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
       <div class="top-bar">
         <button id="toggleSidebarBtn" title="Toggle History">☰</button>
         <div class="usage-bar" id="usageBar">
+          <div class="acct-wrap" id="acctWrap">
+            <button id="acctBtn" title="Switch account">👤 <span id="acctName">Account</span> ▾</button>
+            <div class="acct-menu" id="acctMenu" hidden></div>
+          </div>
           <span id="usageText">Usage loading…</span>
           <span id="modelUsage" title="Spend on the selected model this month. The allowance itself is one pool shared by all models."></span>
           <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.000000</b></span>
@@ -230,7 +258,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
               <select id="providerSelect" class="model-select"><option value="">Provider…</option></select>
               <select id="modelSelect" class="model-select"><option value="">Model…</option></select>
             </div>
-            <div class="chin-right"><button id="sendBtn" class="send-btn" disabled>Send</button></div>
+            <div class="chin-right"><input type="file" id="fileInput" multiple hidden /><button id="attachBtn" class="attach-btn" title="Attach text / code files (or drag &amp; drop)">📎</button><button id="sendBtn" class="send-btn" disabled>Send</button></div>
           </div>
         </div>
         <div id="streamingIndicator" class="streaming">Thinking…</div>
@@ -842,6 +870,7 @@ class AIChatApp {
     this.availableTabs = [];
     this.lastQuota = null;
     this.accountInfo = null;
+    this.accounts = safeJSON('puter-accounts', {});
     this.settings = DebugLog.settings;
     this.logFilter = new Set(['network', 'sdk', 'event', 'console', 'preview']);
     this.openLog = new Set();
@@ -860,6 +889,7 @@ class AIChatApp {
 
   async init() {
     this.bindEvents();
+    this.bindAcctEvents();
     this.loadHistory();
     this.loadTheme();
     this.setupTextarea();
@@ -914,7 +944,14 @@ class AIChatApp {
     this.chatInput.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.isComposing && (this.settings.enterToSend ? !e.shiftKey : (e.ctrlKey || e.metaKey))) { e.preventDefault(); this.handleSend(); }
     });
+    this.$('attachBtn').addEventListener('click', () => this.$('fileInput').click());
+    this.$('fileInput').addEventListener('change', e => { this.addFiles(e.target.files); e.target.value = ''; });
+    const box = document.querySelector('.composer-box');
+    ['dragenter','dragover'].forEach(ev => box.addEventListener(ev, e => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) { e.preventDefault(); box.classList.add('dragover'); } }));
+    ['dragleave','drop'].forEach(ev => box.addEventListener(ev, () => box.classList.remove('dragover')));
+    box.addEventListener('drop', e => { if (e.dataTransfer?.files?.length) { e.preventDefault(); this.addFiles(e.dataTransfer.files); } });
     this.chatInput.addEventListener('paste', e => {
+      if (e.clipboardData?.files?.length) { e.preventDefault(); this.addFiles(e.clipboardData.files); return; }
       const text = e.clipboardData.getData('text');
       if (text.length > 500) { e.preventDefault(); this.addAttachment(text); }
     });
@@ -1005,13 +1042,13 @@ class AIChatApp {
   }
 
   updateCopyLabel() {
-    const map = { preview: 'Copy', code: 'Copy', raw: 'Copy JSON', log: 'Copy Log', settings: 'Copy' };
+    const map = { preview: 'Copy', code: 'Copy', raw: 'Copy', log: 'Copy Log', settings: 'Copy' };
     this.copyBtn.textContent = map[this.activeTab] || 'Copy';
   }
 
   async copyCurrent() {
     let text = '';
-    if (this.activeTab === 'raw') text = JSON.stringify(this.currentRaw, null, 2);
+    if (this.activeTab === 'raw') text = this.rawText();
     else if (this.activeTab === 'log') text = this.formatLog();
     else if (this.activeTab === 'settings') text = this.settingsViewer.innerText;
     else if (this.activeTab === 'preview') text = (this.currentPanelState && this.currentPanelState.code) || '';
@@ -1250,10 +1287,21 @@ class AIChatApp {
   loadTheme() { const s = localStorage.getItem('puter-theme'); if (s) document.documentElement.setAttribute('data-theme', s); }
   setupTextarea() { this.chatInput.style.height = 'auto'; }
 
-  addAttachment(text) {
+  async addFiles(fileList) {
+    const MAX = 1024 * 1024; // 1 MB per file
+    for (const f of Array.from(fileList || [])) {
+      try {
+        if (f.size > MAX) { this.showBanner(`${f.name}: too large (${(f.size/1048576).toFixed(1)} MB, max 1 MB).`); setTimeout(() => this.hideBanner(), 4000); continue; }
+        const text = await f.text();
+        if (text.slice(0, 4000).includes('\u0000')) { this.showBanner(`${f.name}: binary files aren't supported — attach text, code, CSV, JSON, Markdown etc.`); setTimeout(() => this.hideBanner(), 4500); continue; }
+        this.addAttachment(text, f.name);
+      } catch (e) { console.error(e); this.showBanner(`Could not read ${f.name}`); setTimeout(() => this.hideBanner(), 4000); }
+    }
+  }
+  addAttachment(text, name) {
     const id = Date.now() + Math.random();
     const kb = (text.length / 1024).toFixed(2);
-    this.attachments.push({ id, name: `pasted-${this.attachments.length + 1}.txt`, size: `${kb} KB`, text });
+    this.attachments.push({ id, name: name || `pasted-${this.attachments.length + 1}.txt`, size: `${kb} KB`, text });
     this.renderAttachments();
     this.updateSendState();
   }
@@ -1274,7 +1322,8 @@ class AIChatApp {
     this.attachments.forEach(a => {
       const tile = document.createElement('div');
       tile.className = 'attachment-tile';
-      tile.innerHTML = `<div class="icon">TXT</div><div class="info"><div class="name">${esc(a.name)}</div><div class="size">${esc(a.size)}</div></div><button class="remove" title="Remove">×</button>`;
+      const ext = (a.name.split('.').pop() || 'txt').slice(0, 4).toUpperCase();
+      tile.innerHTML = `<div class="icon">${esc(ext)}</div><div class="info"><div class="name">${esc(a.name)}</div><div class="size">${esc(a.size)}</div></div><button class="remove" title="Remove">×</button>`;
       tile.querySelector('.remove').addEventListener('click', () => this.removeAttachment(a.id));
       this.attachmentsEl.appendChild(tile);
     });
@@ -1304,7 +1353,7 @@ class AIChatApp {
     this.chatInput.disabled = false; this.updateSendState();
     try {
       this.setLoading('Loading account…');
-      try { this.accountInfo = await puter.auth.getUser(); } catch (_) {}
+      try { this.accountInfo = await puter.auth.getUser(); this.recordAccount(null); } catch (_) {}
       this.setLoading('Listing models…');
       await this.loadModels();
       this.setLoading('Checking quota…');
@@ -1366,6 +1415,122 @@ class AIChatApp {
     }
   }
 
+
+  /* ---------- ACCOUNTS (switcher + per-account monthly usage) ----------
+   * Each account's auth token and last-known allowance are kept in this browser's localStorage so you can
+   * switch with one click. Usage for non-active accounts is the last snapshot (or press "Refresh all"). */
+  saveAccounts() { try { localStorage.setItem('puter-accounts', JSON.stringify(this.accounts)); } catch (_) {} }
+  currentUsername() { return this.accountInfo?.username || null; }
+
+  parseAllowance(usage) {
+    const info = usage?.allowanceInfo; if (!info) return null;
+    return { remaining: Number(info.remaining) || 0, allowance: Number(info.monthUsageAllowance) || 0, unit: info.unit || 'credits', resetAt: info.resetAt || usage.resetAt || usage.nextResetAt || null };
+  }
+
+  recordAccount(snap) {
+    const u = this.currentUsername(); if (!u) return;
+    let token = null; try { token = puter.authToken || null; } catch (_) {}
+    const old = this.accounts[u] || {};
+    this.accounts[u] = Object.assign({}, old, { username: u, token: token || old.token || null, stale: false },
+      snap ? Object.assign({}, snap, { updatedAt: Date.now() }) : {});
+    this.saveAccounts(); this.updateAcctButton();
+    if (!this.$('acctMenu').hidden) this.renderAcctMenu();
+  }
+
+  updateAcctButton() { this.$('acctName').textContent = this.currentUsername() || 'Account'; }
+
+  ago(ts) {
+    if (!ts) return 'never';
+    const m = Math.round((Date.now() - ts) / 60000);
+    if (m < 1) return 'just now'; if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60); return h < 24 ? h + 'h ago' : Math.round(h / 24) + 'd ago';
+  }
+
+  renderAcctMenu() {
+    const menu = this.$('acctMenu'); const cur = this.currentUsername();
+    const list = Object.values(this.accounts).sort((a, b) => (a.username === cur ? -1 : b.username === cur ? 1 : a.username.localeCompare(b.username)));
+    let h = '';
+    if (!list.length) h += '<div class="acct-note">No accounts saved yet — they are added automatically when you sign in.</div>';
+    list.forEach(a => {
+      const pct = a.allowance > 0 ? Math.max(0, Math.min(100, (a.allowance - a.remaining) / a.allowance * 100)) : 0;
+      const left = a.allowance > 0 ? 100 - pct : 0;
+      const rem = a.remaining != null ? `${Number(a.remaining).toFixed(2)} / ${Number(a.allowance).toFixed(2)} ${esc(a.unit || 'credits')}` : 'usage unknown';
+      const reset = this.formatReset(a.resetAt);
+      h += `<div class="acct-item ${a.username === cur ? 'current' : ''}" data-user="${esc(a.username)}">
+        <div class="acct-row"><span>${a.username === cur ? '● ' : ''}<b>${esc(a.username)}</b>${a.stale ? ' <span style="color:var(--danger)">· re-login needed</span>' : ''}</span>
+        ${a.username === cur ? '' : '<button class="acct-x" data-remove="' + esc(a.username) + '" title="Forget this account">×</button>'}</div>
+        <div class="acct-bar"><i class="${left < 10 ? 'low' : ''}" style="width:${left.toFixed(1)}%"></i></div>
+        <div class="acct-sub"><span>${rem}${a.allowance > 0 ? ' · ' + left.toFixed(1) + '% left' : ''}</span><span>${reset ? 'resets in ' + reset + ' · ' : ''}${this.ago(a.updatedAt)}</span></div></div>`;
+    });
+    h += `<div class="acct-foot"><button data-act="refreshAll">↻ Refresh all</button><button data-act="add">+ Add account</button></div>
+      <div class="acct-note">Tokens are stored in this browser only. "Add account" signs out first; if Puter signs you straight back into the same user, log out at puter.com in another tab and try again.</div>`;
+    menu.innerHTML = h;
+  }
+
+  bindAcctEvents() {
+    const btn = this.$('acctBtn'), menu = this.$('acctMenu');
+    btn.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; if (!menu.hidden) this.renderAcctMenu(); });
+    document.addEventListener('click', e => { if (!menu.hidden && !this.$('acctWrap').contains(e.target)) menu.hidden = true; });
+    menu.addEventListener('click', e => {
+      const rm = e.target.closest('[data-remove]');
+      if (rm) { e.stopPropagation(); delete this.accounts[rm.dataset.remove]; this.saveAccounts(); this.renderAcctMenu(); return; }
+      const act = e.target.closest('[data-act]');
+      if (act) { act.dataset.act === 'add' ? this.addAccount() : this.refreshAllAccounts(); return; }
+      const item = e.target.closest('.acct-item');
+      if (item && !item.classList.contains('current')) this.switchAccount(item.dataset.user);
+    });
+  }
+
+  async switchAccount(username) {
+    if (this.isProcessing) { this.showBanner('Wait for the current response to finish before switching.'); setTimeout(() => this.hideBanner(), 3000); return; }
+    const acc = this.accounts[username];
+    this.$('acctMenu').hidden = true;
+    if (!acc?.token || typeof puter.setAuthToken !== 'function') return this.addAccount();
+    try {
+      this.setLoading(`Switching to ${username}…`);
+      puter.setAuthToken(acc.token);
+      const u = await puter.auth.getUser();
+      if (!u || (u.username && u.username !== username)) throw new Error('token does not match account');
+      await this.afterSignIn();
+    } catch (e) {
+      console.error(e);
+      acc.stale = true; this.saveAccounts();
+      this.setLoading(null);
+      this.showBanner(`Saved session for ${username} no longer works — use "Add account" to sign in again.`);
+      setTimeout(() => this.hideBanner(), 5000);
+      try { if (this.currentUsername()) { const t = this.accounts[this.currentUsername()]?.token; if (t) puter.setAuthToken(t); } } catch (_) {}
+    }
+  }
+
+  async addAccount() {
+    if (this.isProcessing) return;
+    this.$('acctMenu').hidden = true;
+    try { await puter.auth.signOut(); } catch (_) {}
+    try { await puter.auth.signIn({ attempt_temp_user_creation: true }); await this.afterSignIn(); }
+    catch (e) { console.error(e); this.usageText.innerHTML = '<span class="err">Sign in failed</span>'; }
+  }
+
+  async refreshAllAccounts() {
+    if (this.isProcessing || typeof puter.setAuthToken !== 'function') return;
+    const cur = this.currentUsername();
+    let keep = null; try { keep = puter.authToken; } catch (_) {}
+    this.setLoading('Refreshing usage for all accounts…');
+    try {
+      for (const a of Object.values(this.accounts)) {
+        if (a.username === cur || !a.token) continue;
+        try {
+          puter.setAuthToken(a.token);
+          const snap = this.parseAllowance(await puter.auth.getMonthlyUsage());
+          if (snap) Object.assign(a, snap, { updatedAt: Date.now(), stale: false });
+        } catch (e) { a.stale = true; }
+      }
+    } finally {
+      try { if (keep) puter.setAuthToken(keep); } catch (_) {}
+      this.saveAccounts(); this.setLoading(null); this.renderAcctMenu();
+      await this.loadUsage();
+    }
+  }
+
   async loadUsage() {
     if (!this.puterReady()) { this.usageText.innerHTML = '<span class="err">Puter unavailable</span>'; return null; }
     try {
@@ -1383,6 +1548,7 @@ class AIChatApp {
         (reset ? ` · resets in ${reset}` : '');
       this.usageText.title = 'Monthly allowance is one pool shared by all models';
       this.updateModelUsage();
+      this.recordAccount(this.parseAllowance(usage));
       return { remaining, allowance, pct };
     } catch (e) {
       this.usageText.innerHTML = '<span class="err">Usage error — see Log</span>';
@@ -1477,6 +1643,7 @@ class AIChatApp {
     }
     const fullMsg = prefix + msg;
     if (!fullMsg.trim()) return;
+    const displayMsg = (this.attachments.length ? this.attachments.map(a => `📎 ${a.name} (${a.size})`).join('\n') + (msg ? '\n\n' : '') : '') + msg;
     this.attachments = []; this.renderAttachments();
 
     this.chatInput.value = ''; this.chatInput.style.height = 'auto';
@@ -1495,8 +1662,8 @@ class AIChatApp {
     const history = chat.messages.map(m => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }));
     history.push({ role: 'user', content: fullMsg });
 
-    this.addMessageToUI(fullMsg, 'user', 'You');
-    chat.messages.push({ role: 'user', content: fullMsg });
+    this.addMessageToUI(displayMsg, 'user', 'You');
+    chat.messages.push({ role: 'user', content: fullMsg, display: displayMsg });
     this.saveChats();
 
     const model = this.modelSelect.value;
@@ -1535,7 +1702,7 @@ class AIChatApp {
       }
       this.saveChats();
       this.updateTotalUsage();
-      this.updateMsgMeta(aiEl, usageInfo, raw, model);
+      this.updateMsgMeta(aiEl, usageInfo, raw, model, full);
       DebugLog.event('response-complete', { model, chars: full.length, chunks: raw.length, reasoningChars: reasoningText.length, usage: usageInfo });
       if (stillViewing()) { this.showCodeInPanel(full, { open: this.settings.autoOpenPanel }); this.refreshCodeButton(); }
       this.renderNetworkLog();
@@ -1582,7 +1749,7 @@ class AIChatApp {
     return out;
   }
 
-  updateMsgMeta(aiEl, usage, raw, model) {
+  updateMsgMeta(aiEl, usage, raw, model, content) {
     if (!aiEl) return;
     const n = normaliseUsage(usage);
     const meta = document.createElement('div');
@@ -1597,38 +1764,27 @@ class AIChatApp {
     }
     meta.innerHTML = `<span>${esc(usageText)}</span><button type="button" class="view-raw-btn">View response</button>`;
     meta.querySelector('.view-raw-btn').addEventListener('click', () => {
-      this.currentRaw = { model, usage, chunks: raw };
+      this.currentRaw = { model, usage, chunks: raw, content };
       this.openTabs(['raw'], 'raw');
     });
     aiEl.appendChild(meta);
   }
 
-  renderResponseViewer() {
+  rawText() {
     const raw = this.currentRaw;
-    if (!raw) { this.rawViewer.textContent = 'No response selected.'; return; }
-    const chunks = raw.chunks || [];
-    let text = '', reasoning = '', usageChunk = null;
-    chunks.forEach(c => {
-      if (!c) return;
-      if (typeof c.text === 'string') text += c.text;
-      if (typeof c.reasoning === 'string') reasoning += c.reasoning;
-      else if (typeof c.thinking === 'string') reasoning += c.thinking;
-      if (c.type === 'usage' || c.usage) usageChunk = c;
-    });
-    const usage = raw.usage || usageChunk?.usage || null;
-    const n = normaliseUsage(usage);
-    let html = `<h4>Model</h4><div class="chunk">${esc(raw.model || 'unknown')}</div>`;
-    if (n) {
-      const usd = n.usd != null ? `$${n.usd.toFixed(7)}` : '—';
-      html += `<h4>Summary</h4><div class="chunk">${n.inTok}↑ / ${n.outTok}↓ · ${n.inTok + n.outTok} tok · ${usd}${n.credits != null ? ` · ${n.credits.toFixed(4)} credits` : ''}${n.cachedTok ? ` · ${n.cachedTok} cached` : ''}${n.thinkingTok ? ` · ${n.thinkingTok} thinking` : ''}${usageChunk?.finish_reason ? ` · finish: ${esc(usageChunk.finish_reason)}` : ''}</div>`;
-    }
-    if (reasoning) html += `<h4>Reasoning (assembled)</h4><div class="chunk">${esc(reasoning)}</div>`;
-    if (text) html += `<h4>Text (assembled)</h4><div class="chunk">${esc(text)}</div>`;
-    html += `<h4>Raw response (${chunks.length} chunks)</h4>`;
-    html += chunks.length
-      ? `<div class="chunk">${esc(JSON.stringify({ model: raw.model, usage, chunks }, null, 2))}</div>`
-      : `<div class="chunk">No chunks stored for this message (sent before chunks were saved).</div>`;
-    this.rawViewer.innerHTML = html;
+    if (!raw) return '';
+    let text = '';
+    (raw.chunks || []).forEach(c => { if (c && typeof c.text === 'string') text += c.text; });
+    return text || raw.content || '';
+  }
+
+  renderResponseViewer() {
+    const text = this.rawText();
+    this.rawViewer.innerHTML = '';
+    const pre = document.createElement('pre');
+    pre.className = 'raw-text';
+    pre.textContent = this.currentRaw ? (text || '(empty response)') : 'No response selected.';
+    this.rawViewer.appendChild(pre);
   }
 
   renderNetworkLog() { this.renderLogViewer(); }   // kept for existing call sites
@@ -1954,9 +2110,9 @@ class AIChatApp {
     this.chatMessages.innerHTML = '';
     chat.messages.forEach(m => {
       const label = m.role === 'user' ? 'You' : (m.model || 'AI');
-      const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai', label);
+      const el = this.addMessageToUI(m.display || m.content, m.role === 'user' ? 'user' : 'ai', label);
       if (m.role === 'ai' && m.reasoning) this.insertReasoningBlock(el, m.reasoning);
-      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, m.chunks || [], m.model || 'AI');
+      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, m.chunks || [], m.model || 'AI', m.content);
     });
     const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
     if (lastAI && this.extractCode(lastAI.content)) this.showCodeInPanel(lastAI.content);
