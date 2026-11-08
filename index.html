@@ -141,6 +141,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .settings-viewer summary,.modal-body summary{cursor:pointer;font-size:.82rem;color:var(--text-primary)}
 .k{color:var(--text-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.4px}
 .v{font-family:var(--font-mono);font-size:.78rem;word-break:break-all}
+.settings-viewer pre,.modal-body pre{font-family:var(--font-mono);font-size:.72rem;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin-top:6px;background:var(--surface-2);padding:8px;border-radius:6px}
 .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;align-items:center;justify-content:center}
 .modal-backdrop.open{display:flex}
 .modal{background:var(--surface-0);border:1px solid var(--border);border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
@@ -181,6 +182,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
         <button id="toggleSidebarBtn" title="Toggle History">☰</button>
         <div class="usage-bar" id="usageBar">
           <span id="usageText">Usage loading…</span>
+          <span id="modelUsage" title="Spend on the selected model this month. The allowance itself is one pool shared by all models."></span>
           <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.000000</b></span>
           <button id="refreshUsageBtn" title="Refresh Puter quota">↻</button>
           <button id="settingsBtn" title="Settings">⚙</button>
@@ -374,7 +376,7 @@ function inferProvider(id) {
  * Shapes seen from Puter:
  *   A) prompt_tokens / completion_tokens / cached_tokens / usd_cents / cost   (OpenAI-style)
  *   B) input_tokens / output_tokens / cache_read_input_tokens / thinking_tokens / usd_cents / cost (Anthropic-style)
- * usd_cents = US cents.  cost = microcents (1 microcent = 1e-6 cent = 1e-8 USD).
+ * usd_cents = US cents. cost = internal units: cost = usd_cents*1.6e6, and quota credits = usd_cents*32 = cost/50000.
  */
 function normaliseUsage(u) {
   if (!u || typeof u !== 'object') return null;
@@ -382,10 +384,10 @@ function normaliseUsage(u) {
   const outTok = u.completion_tokens ?? u.output_tokens ?? 0;
   const cachedTok = u.cached_tokens ?? u.cache_read_input_tokens ?? 0;
   const thinkingTok = u.thinking_tokens ?? 0;
-  let usd = null, micro = null;
-  if (typeof u.usd_cents === 'number') { usd = u.usd_cents / 100; micro = Math.round(u.usd_cents * 1e6); }
-  else if (typeof u.cost === 'number') { usd = u.cost / 1e8; micro = Math.round(u.cost); }
-  return { inTok, outTok, cachedTok, thinkingTok, usd, micro, raw: u };
+  let usd = null, credits = null;
+  if (typeof u.usd_cents === 'number') { usd = u.usd_cents / 100; credits = u.usd_cents * 32; }
+  else if (typeof u.cost === 'number') { usd = u.cost / 1.6e8; credits = u.cost / 50000; }
+  return { inTok, outTok, cachedTok, thinkingTok, usd, credits, raw: u };
 }
 
 /* ---------- APP ---------- */
@@ -400,6 +402,7 @@ class AIChatApp {
     this.modelRow = this.$('modelRow');
     this.streamingEl = this.$('streamingIndicator');
     this.usageText = this.$('usageText');
+    this.modelUsageEl = this.$('modelUsage');
     this.totalUsage = this.$('totalUsage');
     this.historyList = this.$('historyList');
     this.sidebar = this.$('sidebar');
@@ -523,8 +526,9 @@ class AIChatApp {
       if (models.length) this.modelSelect.value = models[0].id;
       const saved = localStorage.getItem('puter-model');
       if (saved && models.some(m => m.id === saved)) this.modelSelect.value = saved;
+      this.updateModelUsage();
     });
-    this.modelSelect.addEventListener('change', () => { try { localStorage.setItem('puter-model', this.modelSelect.value); } catch (_) {} });
+    this.modelSelect.addEventListener('change', () => { try { localStorage.setItem('puter-model', this.modelSelect.value); } catch (_) {} this.updateModelUsage(); });
 
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); this.newChat(); }
@@ -779,11 +783,46 @@ class AIChatApp {
       this.usageText.innerHTML =
         `${unit}: <b>${remaining.toFixed(2)}</b> / ${allowance.toFixed(2)} (${pct.toFixed(2)}% used)` +
         (reset ? ` · resets in ${reset}` : '');
+      this.usageText.title = 'Monthly allowance is one pool shared by all models';
+      this.updateModelUsage();
       return { remaining, allowance, pct };
     } catch (e) {
       this.usageText.innerHTML = '<span class="err">Usage error — see Log</span>';
       return null;
     }
+  }
+
+  normKey(s) { return String(s).toLowerCase().replace(/\./g, '_dot_'); }
+
+  // usage keys look like "provider:model:metric"; dots in model ids are written "_dot_"
+  usageByModel() {
+    const u = this.lastQuota?.usage, map = {};
+    if (!u) return [];
+    for (const [k, v] of Object.entries(u)) {
+      if (k === 'total' || !v || typeof v !== 'object') continue;
+      const i = k.lastIndexOf(':'); if (i < 0) continue;
+      const name = k.slice(0, i);
+      const r = (map[name] ||= { name, cost: 0, count: 0 });
+      r.cost += v.cost || 0; r.count = Math.max(r.count, v.count || 0);
+    }
+    return Object.values(map).sort((a, b) => b.cost - a.cost);
+  }
+
+  modelUsageFor(modelId) {
+    const m = this.allModels.find(x => (x.id || x.name) === modelId) || {};
+    const cands = new Set([this.normKey(modelId)]);
+    if (m.provider) cands.add(this.normKey(m.provider + ':' + modelId));
+    let cost = 0, count = 0;
+    this.usageByModel().forEach(r => { if (cands.has(this.normKey(r.name))) { cost += r.cost; count = Math.max(count, r.count); } });
+    return { cost, count };
+  }
+
+  updateModelUsage() {
+    const el = this.modelUsageEl; if (!el) return;
+    const id = this.modelSelect.value;
+    if (!id || !this.lastQuota?.usage) { el.innerHTML = ''; return; }
+    const r = this.modelUsageFor(id);
+    el.innerHTML = `This model: <b>${r.cost.toFixed(2)}</b> cr · ${r.count} call${r.count === 1 ? '' : 's'}`;
   }
 
   formatReset(ts) {
@@ -889,7 +928,7 @@ class AIChatApp {
           if (follow) this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
-      chat.messages.push({ role: 'ai', content: full, usage: usageInfo, model, reasoning: reasoningText });
+      chat.messages.push({ role: 'ai', content: full, usage: usageInfo, model, reasoning: reasoningText, chunks: raw.slice(0, 3000) });
       const norm = normaliseUsage(usageInfo);
       if (norm) {
         chat.totalTokens = (chat.totalTokens || 0) + norm.inTok + norm.outTok;
@@ -948,9 +987,9 @@ class AIChatApp {
     meta.className = 'msg-meta';
     let usageText = 'usage not reported';
     if (n) {
-      const usd = n.usd != null ? `$${n.usd.toFixed(6)}` : '—';
-      const micro = n.micro != null ? ` (${n.micro} µ¢)` : '';
-      usageText = `${n.inTok}↑ / ${n.outTok}↓ · ${n.inTok + n.outTok} tok · ${usd}${micro}`;
+      const usd = n.usd != null ? `$${n.usd.toFixed(7)}` : '—';
+      const cr = n.credits != null ? ` · ${n.credits.toFixed(4)} cr` : '';
+      usageText = `${n.inTok}↑ / ${n.outTok}↓ · ${n.inTok + n.outTok} tok · ${usd}${cr}`;
       if (n.thinkingTok) usageText += ` · ${n.thinkingTok} think`;
       if (n.cachedTok) usageText += ` · ${n.cachedTok} cached`;
     }
@@ -965,17 +1004,28 @@ class AIChatApp {
   renderResponseViewer() {
     const raw = this.currentRaw;
     if (!raw) { this.rawViewer.textContent = 'No response selected.'; return; }
-    const n = normaliseUsage(raw.usage);
+    const chunks = raw.chunks || [];
+    let text = '', reasoning = '', usageChunk = null;
+    chunks.forEach(c => {
+      if (!c) return;
+      if (typeof c.text === 'string') text += c.text;
+      if (typeof c.reasoning === 'string') reasoning += c.reasoning;
+      else if (typeof c.thinking === 'string') reasoning += c.thinking;
+      if (c.type === 'usage' || c.usage) usageChunk = c;
+    });
+    const usage = raw.usage || usageChunk?.usage || null;
+    const n = normaliseUsage(usage);
     let html = `<h4>Model</h4><div class="chunk">${esc(raw.model || 'unknown')}</div>`;
     if (n) {
-      html += `<h4>Usage</h4><div class="chunk">${esc(JSON.stringify(n.raw, null, 2))}</div>`;
-      const usd = n.usd != null ? `$${n.usd.toFixed(6)}` : '—';
-      html += `<h4>Normalised</h4><div class="chunk">${esc(`${n.inTok}↑ / ${n.outTok}↓ · ${n.inTok+n.outTok} tok · ${usd}${n.micro!=null?` (${n.micro} µ¢)`:''}${n.cachedTok?` · ${n.cachedTok} cached`:''}${n.thinkingTok?` · ${n.thinkingTok} thinking`:''}`)}</div>`;
-    } else html += `<h4>Usage</h4><div class="chunk">not reported</div>`;
-    const chunks = raw.chunks || [];
-    html += `<h4>Streamed chunks (${chunks.length})</h4>`;
-    if (!chunks.length) html += `<div class="chunk">Not stored for reloaded chats.</div>`;
-    chunks.forEach((c, i) => { html += `<div class="chunk"><b>#${i + 1}</b> ${esc(JSON.stringify(c))}</div>`; });
+      const usd = n.usd != null ? `$${n.usd.toFixed(7)}` : '—';
+      html += `<h4>Summary</h4><div class="chunk">${n.inTok}↑ / ${n.outTok}↓ · ${n.inTok + n.outTok} tok · ${usd}${n.credits != null ? ` · ${n.credits.toFixed(4)} credits` : ''}${n.cachedTok ? ` · ${n.cachedTok} cached` : ''}${n.thinkingTok ? ` · ${n.thinkingTok} thinking` : ''}${usageChunk?.finish_reason ? ` · finish: ${esc(usageChunk.finish_reason)}` : ''}</div>`;
+    }
+    if (reasoning) html += `<h4>Reasoning (assembled)</h4><div class="chunk">${esc(reasoning)}</div>`;
+    if (text) html += `<h4>Text (assembled)</h4><div class="chunk">${esc(text)}</div>`;
+    html += `<h4>Raw response (${chunks.length} chunks)</h4>`;
+    html += chunks.length
+      ? `<div class="chunk">${esc(JSON.stringify({ model: raw.model, usage, chunks }, null, 2))}</div>`
+      : `<div class="chunk">No chunks stored for this message (sent before chunks were saved).</div>`;
     this.rawViewer.innerHTML = html;
   }
 
@@ -1014,6 +1064,11 @@ class AIChatApp {
       html += `<div class="row">Remaining: <b>${num(q.remaining)}</b> ${esc(q.unit || '')}</div>`;
       html += `<div class="row">Allowance: <b>${num(q.monthUsageAllowance)}</b> ${esc(q.unit || '')}</div>`;
     } else html += `<div class="row">Not available</div>`;
+    html += `<h4>Usage this month (allowance is shared by all models)</h4>`;
+    const rows = this.usageByModel();
+    if (rows.length) rows.forEach(r => { html += `<div class="row"><span class="v">${esc(r.name)}</span> — <b>${r.cost.toFixed(3)}</b> cr · ${r.count} calls</div>`; });
+    else html += `<div class="row">Not available</div>`;
+    if (this.lastQuota) html += `<details><summary>Raw usage JSON</summary><pre>${esc(JSON.stringify(this.lastQuota, null, 2))}</pre></details>`;
     html += `<h4>All models (${this.allModels.length})</h4>`;
     this.allModels.forEach(m => {
       const id = typeof m === 'string' ? m : (m.id || m.name);
@@ -1028,6 +1083,7 @@ class AIChatApp {
         <div class="row"><span class="k">Context</span> <span class="v">${esc(ctx)}</span></div>
         <div class="row"><span class="k">Max output</span> <span class="v">${esc(maxTok)}</span></div>
         <div class="row"><span class="k">Prices</span> <span class="v">${esc(prices)}</span></div>
+        <details><summary>Raw model JSON</summary><pre>${esc(JSON.stringify(m, null, 2))}</pre></details>
       </details>`;
     });
     return html;
@@ -1122,7 +1178,7 @@ class AIChatApp {
       const label = m.role === 'user' ? 'You' : (m.model || 'AI');
       const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai', label);
       if (m.role === 'ai' && m.reasoning) this.insertReasoningBlock(el, m.reasoning);
-      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, [], m.model || 'AI');
+      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, m.chunks || [], m.model || 'AI');
     });
     const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
     if (lastAI && this.extractCode(lastAI.content)) this.showCodeInPanel(lastAI.content);
