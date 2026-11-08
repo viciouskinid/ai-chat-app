@@ -15,6 +15,7 @@
   --font-serif:Georgia,'Times New Roman',serif;
   --font-mono:'SF Mono','Consolas','Courier New',monospace;
   --radius:12px;--radius-sm:8px;--radius-lg:20px;
+  --sidebar-w:270px;--sidepanel-w:460px;
 }
 [data-theme="dark"]{
   --bg:#1a1915;--surface-0:#22211d;--surface-1:#2a2924;--surface-2:#35332c;--surface-3:#3f3d35;
@@ -24,8 +25,9 @@
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);min-height:100vh;overflow:hidden;display:flex;justify-content:center;align-items:center;padding:16px;transition:background .2s,color .2s}
-.app-layout{display:flex;width:100%;max-width:1440px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border)}
-.sidebar{width:270px;background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden}
+.app-layout{display:flex;width:100%;max-width:1500px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border);position:relative}
+/* Sidebar */
+.sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;position:relative;transition:width .15s ease}
 .sidebar.hidden{width:0;border-right:none}
 .sidebar-header{padding:20px 16px 12px;display:flex;justify-content:space-between;align-items:center}
 .brand{font-family:var(--font-serif);font-size:1.3rem;font-weight:500;letter-spacing:-.02em}
@@ -39,10 +41,15 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .history-item:hover{background:var(--surface-2)}
 .history-item.active{background:var(--surface-3);color:var(--text-primary);font-weight:500}
 .history-meta{font-size:.68rem;color:var(--text-muted);margin-top:2px;font-variant-numeric:tabular-nums}
+/* Resize handles */
+.resizer{width:5px;background:transparent;cursor:col-resize;flex-shrink:0;position:relative;z-index:5;transition:background .15s}
+.resizer:hover,.resizer.dragging{background:var(--accent);opacity:.5}
+/* Chat container */
 .chat-container{flex:1;display:flex;flex-direction:column;min-width:0}
 .top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;background:var(--surface-1);border-bottom:1px solid var(--border);gap:12px}
 .top-bar button{background:none;border:none;font-size:.85rem;color:var(--text-secondary);cursor:pointer;padding:4px 10px;border-radius:6px;transition:background .15s}
 .top-bar button:hover{background:var(--surface-2)}
+.top-bar button.hidden{display:none}
 .usage-bar{display:flex;gap:14px;align-items:center;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap}
 .usage-bar b{color:var(--text-secondary);font-weight:600}
 .chat-messages{flex:1;padding:28px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;background:var(--bg)}
@@ -52,18 +59,15 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .message{max-width:82%;padding:14px 18px;border-radius:var(--radius);line-height:1.6;font-size:.95rem}
 .user-message{background:var(--user-bubble);align-self:flex-end;border-bottom-right-radius:4px}
 .ai-message{background:var(--surface-0);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px;width:82%}
-.message-sender{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:6px}
+.message-sender{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono)}
 .message-content{white-space:pre-wrap;word-break:break-word}
-/* Chat code block */
 .code-block{margin:10px 0;border:1px solid var(--code-border);border-radius:8px;overflow:hidden;background:var(--code-bg)}
 .code-block-header{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:var(--surface-2);font-size:.72rem;color:var(--text-secondary);border-bottom:1px solid var(--code-border)}
 .code-block-header button{background:none;border:none;font-size:.72rem;color:var(--accent);cursor:pointer;text-decoration:underline}
 .code-block pre{margin:0;padding:12px;overflow-x:auto;font-family:var(--font-mono);font-size:.8rem;line-height:1.5;color:var(--text-primary)}
-/* Per-message meta */
 .msg-meta{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums;border-top:1px solid var(--border);padding-top:8px;flex-wrap:wrap}
 .msg-meta button{background:none;border:none;font-size:.7rem;color:var(--accent);cursor:pointer;text-decoration:underline;padding:0}
-.raw-panel{display:none;margin-top:8px;padding:10px;background:var(--code-bg);border:1px solid var(--code-border);border-radius:6px;font-family:var(--font-mono);font-size:.68rem;color:var(--text-secondary);max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all}
-.raw-panel.open{display:block}
+/* Composer */
 .composer{padding:12px 24px 16px;background:var(--surface-0);border-top:1px solid var(--border)}
 .composer-box{background:var(--surface-1);border:1px solid var(--border-strong);border-radius:var(--radius-lg);padding:10px 12px 6px;transition:border-color .2s,box-shadow .2s}
 .composer-box:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.12)}
@@ -71,6 +75,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 #chatInput::placeholder{color:var(--text-muted)}
 .composer-chin{display:flex;justify-content:space-between;align-items:center;padding-top:6px;margin-top:4px;border-top:1px solid var(--border)}
 .chin-left{display:flex;align-items:center;gap:8px;min-width:0}
+.chin-left.hidden{display:none}
 .chin-right{display:flex;align-items:center;gap:8px}
 .model-select{background:transparent;border:none;font-size:.8rem;color:var(--text-secondary);cursor:pointer;padding:4px 6px;border-radius:6px;outline:none;max-width:170px}
 .model-select:hover{background:var(--surface-2)}
@@ -88,8 +93,8 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .streaming{display:none;text-align:center;color:var(--text-muted);font-size:.8rem;margin-top:8px}
 .streaming.active{display:block}
 .build-status{text-align:center;padding-top:8px;font-size:.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums}
-/* Side panel — Claude-style */
-.side-panel{width:460px;background:var(--surface-1);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s ease;overflow:hidden}
+/* Side panel */
+.side-panel{width:var(--sidepanel-w);background:var(--surface-1);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .15s ease}
 .side-panel.hidden{width:0;border-left:none}
 .side-panel-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-1)}
 .segmented{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:2px;flex-shrink:0}
@@ -107,7 +112,10 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .side-tab[hidden]{display:none}
 .preview-frame{flex:1;border:none;background:#fff;width:100%;height:100%}
 .code-preview{flex:1;padding:16px;overflow:auto;font-family:var(--font-mono);font-size:.78rem;line-height:1.5;background:var(--code-bg);white-space:pre-wrap;word-break:break-all}
-@media(max-width:900px){.sidebar{display:none}.side-panel{width:340px}}
+.raw-viewer{flex:1;padding:16px;overflow:auto;font-family:var(--font-mono);font-size:.72rem;line-height:1.6;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;background:var(--code-bg)}
+.raw-viewer h4{font-family:var(--font-ui);font-size:.8rem;margin:14px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.raw-viewer .chunk{background:var(--surface-2);border-radius:4px;padding:6px 8px;margin:4px 0;border-left:2px solid var(--accent)}
+@media(max-width:900px){.sidebar{display:none}.side-panel{width:340px}.resizer{display:none}}
 @media(max-width:600px){body{padding:0}.app-layout{height:100vh;border-radius:0;border:none}.side-panel{display:none}.message{max-width:92%}.ai-message{width:92%}}
 </style>
 </head>
@@ -118,6 +126,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
     <button id="newChatBtn" class="new-chat-btn"><span class="plus-icon">+</span> New chat</button>
     <div class="history-list" id="historyList"></div>
   </aside>
+  <div class="resizer" id="leftResizer" title="Drag to resize sidebar"></div>
 
   <div class="chat-container">
     <div class="top-bar">
@@ -127,7 +136,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
         <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.0000</b></span>
         <button id="refreshUsageBtn" title="Refresh Puter quota">↻</button>
       </div>
-      <button id="toggleLogBtn" title="Toggle Code View">Code</button>
+      <button id="toggleLogBtn" class="hidden" title="Toggle Code View">Code</button>
     </div>
 
     <main class="chat-messages" id="chatMessages">
@@ -146,7 +155,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
       <div class="composer-box">
         <textarea id="chatInput" placeholder="How can I help you today?" rows="1"></textarea>
         <div class="composer-chin">
-          <div class="chin-left">
+          <div class="chin-left hidden" id="modelRow">
             <select id="providerSelect" class="model-select"><option value="">Provider…</option></select>
             <select id="modelSelect" class="model-select"><option value="">Model…</option></select>
           </div>
@@ -158,12 +167,13 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
     </footer>
   </div>
 
-  <!-- Claude-style side panel -->
+  <div class="resizer" id="rightResizer" title="Drag to resize panel"></div>
   <aside class="side-panel hidden" id="sidePanel">
     <div class="side-panel-header">
       <div class="segmented" role="tablist">
         <button class="active" data-tab="preview" role="tab">Preview</button>
         <button data-tab="code" role="tab">Code</button>
+        <button data-tab="raw" role="tab">Raw</button>
       </div>
       <div class="side-title" id="sideTitle"><b id="codeFileName">code</b><span class="sep">·</span><span id="codeLanguage">html</span></div>
       <div class="side-actions">
@@ -175,12 +185,13 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
     <div class="side-body">
       <div class="side-tab" id="tab-preview"><iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe></div>
       <div class="side-tab" id="tab-code" hidden><pre class="code-preview"><code id="codeContent"></code></pre></div>
+      <div class="side-tab" id="tab-raw" hidden><div class="raw-viewer" id="rawViewer"></div></div>
     </div>
   </aside>
 </div>
 
 <script>
-/* ---------- BUILD STAMP (version only if clock fails) ---------- */
+/* ---------- BUILD STAMP ---------- */
 (function () {
   const KEY = 'puter-build-meta';
   let prev = null;
@@ -213,6 +224,7 @@ class AIChatApp {
     this.sendBtn = this.$('sendBtn');
     this.providerSelect = this.$('providerSelect');
     this.modelSelect = this.$('modelSelect');
+    this.modelRow = this.$('modelRow');
     this.streamingEl = this.$('streamingIndicator');
     this.usageText = this.$('usageText');
     this.totalUsage = this.$('totalUsage');
@@ -223,6 +235,8 @@ class AIChatApp {
     this.codeLanguage = this.$('codeLanguage');
     this.codeFileName = this.$('codeFileName');
     this.previewFrame = this.$('previewFrame');
+    this.rawViewer = this.$('rawViewer');
+    this.codeToggleBtn = this.$('toggleLogBtn');
     this.attachmentChip = this.$('attachmentChip');
     this.attachmentName = this.$('attachmentName');
     this.attachmentMeta = this.$('attachmentMeta');
@@ -232,7 +246,8 @@ class AIChatApp {
     this.chats = JSON.parse(localStorage.getItem('puter-chats') || '{}');
     this.pasteBuffer = '';
     this.modelsByProvider = {};
-    this.currentPanelState = null; // { code, lang, fileName }
+    this.currentPanelState = null;
+    this.currentRaw = null;
 
     this.init();
   }
@@ -243,6 +258,7 @@ class AIChatApp {
     this.loadHistory();
     this.loadTheme();
     this.setupTextarea();
+    this.setupResizers();
     this.updateTotalUsage();
 
     if (!this.puterReady()) {
@@ -262,7 +278,7 @@ class AIChatApp {
     this.sendBtn.addEventListener('click', e => { e.preventDefault(); this.handleSend(); });
     this.$('refreshUsageBtn').addEventListener('click', () => this.loadUsage());
     this.$('toggleSidebarBtn').addEventListener('click', () => this.sidebar.classList.toggle('hidden'));
-    this.$('toggleLogBtn').addEventListener('click', () => this.sidePanel.classList.toggle('hidden'));
+    this.codeToggleBtn.addEventListener('click', () => this.sidePanel.classList.toggle('hidden'));
     this.$('closeSidePanelBtn').addEventListener('click', () => this.sidePanel.classList.add('hidden'));
 
     document.querySelectorAll('.segmented button').forEach(btn => {
@@ -272,17 +288,22 @@ class AIChatApp {
         const t = btn.dataset.tab;
         this.$('tab-preview').hidden = t !== 'preview';
         this.$('tab-code').hidden = t !== 'code';
+        this.$('tab-raw').hidden = t !== 'raw';
+        if (t === 'raw' && this.currentRaw) this.renderRawViewer(this.currentRaw);
       });
     });
 
     this.$('copyCodeBtn').addEventListener('click', () => {
-      navigator.clipboard.writeText(this.codeContent.textContent);
+      const content = document.querySelector('.segmented button.active').dataset.tab === 'raw'
+        ? JSON.stringify(this.currentRaw, null, 2)
+        : this.codeContent.textContent;
+      navigator.clipboard.writeText(content);
       this.$('copyCodeBtn').textContent = 'Copied!';
       setTimeout(() => this.$('copyCodeBtn').textContent = 'Copy', 1500);
     });
     this.$('downloadCodeBtn').addEventListener('click', () => {
       const s = this.currentPanelState; if (!s) return;
-      const ext = ({ html: 'html', css: 'css', js: 'js', javascript: 'js', python: 'py', json: 'json' })[s.lang] || 'txt';
+      const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[s.lang] || 'txt';
       const blob = new Blob([s.code], { type: 'text/plain' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -329,6 +350,45 @@ class AIChatApp {
       if (saved && models.some(m => m.id === saved)) this.modelSelect.value = saved;
     });
     this.modelSelect.addEventListener('change', () => localStorage.setItem('puter-model', this.modelSelect.value));
+  }
+
+  setupResizers() {
+    const makeResizer = (handle, target, side, varName) => {
+      let startX, startW;
+      const onDown = e => {
+        startX = e.clientX;
+        startW = target.getBoundingClientRect().width;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        e.preventDefault();
+      };
+      const onMove = e => {
+        const dx = e.clientX - startX;
+        let w = side === 'left' ? startW + dx : startW - dx;
+        w = Math.max(180, Math.min(700, w));
+        target.style.width = w + 'px';
+        document.documentElement.style.setProperty(varName, w + 'px');
+      };
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        localStorage.setItem('puter-' + varName, target.style.width);
+      };
+      handle.addEventListener('mousedown', onDown);
+    };
+    makeResizer(this.$('leftResizer'), this.sidebar, 'left', '--sidebar-w');
+    makeResizer(this.$('rightResizer'), this.sidePanel, 'right', '--sidepanel-w');
+
+    const lw = localStorage.getItem('puter---sidebar-w');
+    const rw = localStorage.getItem('puter---sidepanel-w');
+    if (lw) { this.sidebar.style.width = lw; document.documentElement.style.setProperty('--sidebar-w', lw); }
+    if (rw) { this.sidePanel.style.width = rw; document.documentElement.style.setProperty('--sidepanel-w', rw); }
   }
 
   loadTheme() { const s = localStorage.getItem('puter-theme'); if (s) document.documentElement.setAttribute('data-theme', s); }
@@ -381,26 +441,31 @@ class AIChatApp {
         (this.modelsByProvider[p] ||= []).push({ id: m.id || m.name, name: m.name || m.id });
       });
       const providers = Object.keys(this.modelsByProvider).sort();
+      if (!providers.length) { this.modelRow.classList.add('hidden'); return; }
+      this.modelRow.classList.remove('hidden');
       this.providerSelect.innerHTML = '';
       providers.forEach(p => {
         const o = document.createElement('option');
         o.value = p; o.textContent = p; this.providerSelect.appendChild(o);
       });
       const saved = localStorage.getItem('puter-model');
+      let restored = false;
       if (saved) {
         for (const p of providers) {
           if (this.modelsByProvider[p].some(m => m.id === saved)) {
             this.providerSelect.value = p;
             this.providerSelect.dispatchEvent(new Event('change'));
-            this.modelSelect.value = saved; break;
+            this.modelSelect.value = saved; restored = true; break;
           }
         }
       }
+      if (!restored) {
+        this.providerSelect.value = providers[0];
+        this.providerSelect.dispatchEvent(new Event('change'));
+      }
     } catch (e) {
       console.warn('listModels failed', e);
-      this.modelsByProvider = { claude: [{ id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' }] };
-      this.providerSelect.innerHTML = '<option value="claude">claude</option>';
-      this.providerSelect.dispatchEvent(new Event('change'));
+      this.modelRow.classList.add('hidden');
     }
   }
 
@@ -425,10 +490,17 @@ class AIChatApp {
     this.totalUsage.innerHTML = `Σ <b>${tok.toLocaleString()}</b> tok · <b>$${cost.toFixed(4)}</b>`;
   }
 
+  /* Show/hide the Code button based on whether current chat has any code */
+  refreshCodeButton() {
+    const chat = this.chats[this.currentChatId];
+    const hasCode = chat && chat.messages.some(m => m.role === 'ai' && this.extractCode(m.content));
+    this.codeToggleBtn.classList.toggle('hidden', !hasCode);
+  }
+
   async handleSend() {
     if (this.isProcessing) return;
     if (!this.puterReady()) {
-      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai');
+      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai', 'system');
       return;
     }
     let msg = this.chatInput.value.trim();
@@ -443,17 +515,17 @@ class AIChatApp {
       this.currentChatId = Date.now().toString();
       this.chats[this.currentChatId] = { title: msg.substring(0, 30), messages: [], totalTokens: 0, totalCost: 0 };
     }
-    this.addMessageToUI(msg, 'user');
+    this.addMessageToUI(msg, 'user', 'You');
     this.chats[this.currentChatId].messages.push({ role: 'user', content: msg });
     this.saveChats();
 
     const model = this.modelSelect.value || 'claude-sonnet-4-6';
-    const raw = [];          // raw streamed chunks for the inspector
-    let usageInfo = null;    // last usage chunk from Puter
+    const raw = [];
+    let usageInfo = null;
 
     try {
       const response = await puter.ai.chat(msg, { model, stream: true });
-      const aiEl = this.addMessageToUI('', 'ai');
+      const aiEl = this.addMessageToUI('', 'ai', model);
       const contentEl = aiEl.querySelector('.message-content');
       let full = '';
       for await (const part of response) {
@@ -465,23 +537,22 @@ class AIChatApp {
           this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
-      this.chats[this.currentChatId].messages.push({ role: 'ai', content: full, usage: usageInfo });
+      this.chats[this.currentChatId].messages.push({ role: 'ai', content: full, usage: usageInfo, model });
       if (usageInfo) {
         const toks = (usageInfo.input_tokens || 0) + (usageInfo.output_tokens || 0);
         const usd = (usageInfo.usd_cents || 0) / 100;
         this.chats[this.currentChatId].totalTokens = (this.chats[this.currentChatId].totalTokens || 0) + toks;
         this.chats[this.currentChatId].totalCost = (this.chats[this.currentChatId].totalCost || 0) + usd;
-        this.updateMsgMeta(aiEl, usageInfo, raw);
-      } else {
-        this.updateMsgMeta(aiEl, null, raw);
       }
+      this.updateMsgMeta(aiEl, usageInfo, raw, model);
       this.saveChats();
       this.updateTotalUsage();
       this.showCodeInPanel(full);
+      this.refreshCodeButton();
       console.log('[Puter raw response]', raw);
     } catch (err) {
       console.error(err);
-      this.addMessageToUI(`Error: ${err.message || err}`, 'ai');
+      this.addMessageToUI(`Error: ${err.message || err}`, 'ai', 'system');
     } finally {
       this.streamingEl.classList.remove('active');
       this.sendBtn.disabled = this.chatInput.value.trim() === '' && !this.pasteBuffer;
@@ -490,7 +561,6 @@ class AIChatApp {
     }
   }
 
-  /* Render fenced code blocks inside a chat message */
   renderMarkdown(text) {
     const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const re = /```(\w*)\n([\s\S]*?)```/g;
@@ -506,8 +576,7 @@ class AIChatApp {
     return out;
   }
 
-  /* Per-message meta: tokens, cost, raw response toggle */
-  updateMsgMeta(aiEl, usage, raw) {
+  updateMsgMeta(aiEl, usage, raw, model) {
     if (!aiEl) return;
     const toks = usage ? (usage.input_tokens || 0) + (usage.output_tokens || 0) : null;
     const usd = usage ? (usage.usd_cents || 0) / 100 : null;
@@ -515,29 +584,45 @@ class AIChatApp {
     meta.className = 'msg-meta';
     meta.innerHTML = `
       <span>${toks != null ? `${usage.input_tokens||0}↑ / ${usage.output_tokens||0}↓ · ${toks} tok · $${usd.toFixed(4)}` : 'usage not reported'}</span>
-      <button type="button">Show raw response</button>
+      <button type="button" class="view-raw-btn">View raw response</button>
     `;
-    const rawPanel = document.createElement('div');
-    rawPanel.className = 'raw-panel';
-    rawPanel.textContent = JSON.stringify(raw, null, 2);
-    meta.querySelector('button').addEventListener('click', e => {
-      const open = rawPanel.classList.toggle('open');
-      e.target.textContent = open ? 'Hide raw response' : 'Show raw response';
+    meta.querySelector('.view-raw-btn').addEventListener('click', () => {
+      this.currentRaw = { model, usage, chunks: raw };
+      this.renderRawViewer(this.currentRaw);
+      this.sidePanel.classList.remove('hidden');
+      document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
+      document.querySelector('.segmented button[data-tab="raw"]').classList.add('active');
+      this.$('tab-preview').hidden = true;
+      this.$('tab-code').hidden = true;
+      this.$('tab-raw').hidden = false;
+      this.$('sideTitle').innerHTML = `<b>raw response</b><span class="sep">·</span>${model}`;
     });
     aiEl.appendChild(meta);
-    aiEl.appendChild(rawPanel);
   }
 
-  /* Extract last code block, show in Claude-style panel */
+  renderRawViewer(raw) {
+    if (!raw) { this.rawViewer.textContent = 'No raw response available.'; return; }
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let html = '';
+    html += `<h4>Model</h4><div class="chunk">${esc(raw.model || 'unknown')}</div>`;
+    html += `<h4>Usage</h4><div class="chunk">${esc(JSON.stringify(raw.usage || {}, null, 2))}</div>`;
+    html += `<h4>Streamed chunks (${raw.chunks?.length || 0})</h4>`;
+    (raw.chunks || []).forEach((c, i) => {
+      html += `<div class="chunk"><b>#${i + 1}</b> ${esc(JSON.stringify(c))}</div>`;
+    });
+    html += `<h4>Full JSON</h4><div class="chunk">${esc(JSON.stringify(raw, null, 2))}</div>`;
+    this.rawViewer.innerHTML = html;
+  }
+
   showCodeInPanel(text) {
     const found = this.extractCode(text);
-    if (!found) return; // don't hide an already-open panel
+    if (!found) return;
     this.currentPanelState = found;
     this.codeLanguage.textContent = found.lang;
     this.codeFileName.textContent = found.fileName;
     this.codeContent.textContent = found.code;
+    this.$('sideTitle').innerHTML = `<b>${found.fileName}</b><span class="sep">·</span>${found.lang}`;
     if (found.lang === 'html' || /<!DOCTYPE html/i.test(found.code) || /<html[\s>]/i.test(found.code)) {
-      // srcdoc injects a base so relative links open in a new tab; sandbox still runs scripts.
       const safe = found.code.replace(/<\/script>/gi, '<\\/script>');
       this.previewFrame.srcdoc = `<!DOCTYPE html><html><head><base target="_blank"></head><body>${safe}</body></html>`;
     } else {
@@ -548,9 +633,11 @@ class AIChatApp {
     document.querySelector('.segmented button[data-tab="preview"]').classList.add('active');
     this.$('tab-preview').hidden = false;
     this.$('tab-code').hidden = true;
+    this.$('tab-raw').hidden = true;
   }
 
   extractCode(text) {
+    if (!text) return null;
     const re = /```(\w*)\n([\s\S]*?)```/g;
     let m, last = '', lang = 'text';
     while ((m = re.exec(text)) !== null) { lang = m[1] || 'text'; last = m[2]; }
@@ -559,12 +646,12 @@ class AIChatApp {
     return { code: last, lang, fileName: `code.${ext}` };
   }
 
-  addMessageToUI(text, sender) {
+  addMessageToUI(text, sender, label) {
     this.$('welcome')?.remove();
     const div = document.createElement('div');
     div.className = `message ${sender}-message`;
     const s = document.createElement('div'); s.className = 'message-sender';
-    s.textContent = sender === 'user' ? 'You' : 'Claude';
+    s.textContent = label || (sender === 'user' ? 'You' : 'Claude');
     const c = document.createElement('div'); c.className = 'message-content';
     if (sender === 'ai') c.innerHTML = this.renderMarkdown(text);
     else c.textContent = text;
@@ -579,7 +666,8 @@ class AIChatApp {
     this.chatMessages.innerHTML = `<div class="welcome" id="welcome"><h1>Claude</h1><p>How can I help you today?</p></div>`;
     this.clearAttachment(); this.sendBtn.disabled = true;
     this.sidePanel.classList.add('hidden');
-    this.currentPanelState = null;
+    this.currentPanelState = null; this.currentRaw = null;
+    this.codeToggleBtn.classList.add('hidden');
     this.loadHistory();
     this.chatInput.focus();
   }
@@ -604,17 +692,22 @@ class AIChatApp {
     this.currentChatId = id;
     this.chatMessages.innerHTML = '';
     chat.messages.forEach(m => {
-      const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai');
-      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, []);
+      const label = m.role === 'user' ? 'You' : (m.model || 'Claude');
+      const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai', label);
+      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, [], m.model || 'Claude');
     });
     const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
-    if (lastAI) this.showCodeInPanel(lastAI.content);
-    else { this.sidePanel.classList.add('hidden'); this.currentPanelState = null; }
+    if (lastAI && this.extractCode(lastAI.content)) {
+      this.showCodeInPanel(lastAI.content);
+    } else {
+      this.sidePanel.classList.add('hidden');
+      this.currentPanelState = null;
+    }
+    this.refreshCodeButton();
     this.loadHistory();
   }
 }
 
-/* copy helper for chat code blocks */
 window.__copyCode = (btn) => {
   const pre = btn.closest('.code-block').querySelector('pre code');
   navigator.clipboard.writeText(pre.textContent);
