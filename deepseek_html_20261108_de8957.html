@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Chat · Puter</title>
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Usage bar -->
+    <div class="usage-bar" id="usageBar">
+      <span id="usageText">Usage loading…</span>
+      <button id="refreshUsageBtn" title="Refresh">↻</button>
+    </div>
+
+    <main class="chat-messages" id="chatMessages">
+      <div class="welcome" id="welcome">
+        <h2>Hello</h2>
+        <p>Pick a model below and start chatting.</p>
+      </div>
+    </main>
+
+    <footer class="composer">
+      <div class="model-row">
+        <select id="modelSelect" class="model-select">
+          <option value="">Loading models…</option>
+        </select>
+      </div>
+      <form id="chatForm" class="input-row">
+        <input id="chatInput" type="text" placeholder="Message…" autocomplete="off" required />
+        <button id="sendBtn" type="submit">Send</button>
+      </form>
+      <div id="streamingIndicator" class="streaming">Thinking…</div>
+    </footer>
+  </div>
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
