@@ -144,7 +144,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .settings-viewer pre,.modal-body pre{font-family:var(--font-mono);font-size:.72rem;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin-top:6px;background:var(--surface-2);padding:8px;border-radius:6px}
 .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;align-items:center;justify-content:center}
 .modal-backdrop.open{display:flex}
-.modal{background:var(--surface-0);border:1px solid var(--border);border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.modal{background:var(--surface-0);border:1px solid var(--border);border-radius:12px;max-width:720px;width:92%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
 .modal-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
 .modal-header h2{font-size:1rem;font-weight:600}
 .modal-body{padding:18px;overflow:auto}
@@ -153,6 +153,29 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .modal-body .row b{color:var(--text-primary)}
 @media(max-width:900px){.sidebar{display:none}.side-panel{width:340px}.resizer{display:none}}
 @media(max-width:600px){body{padding:0}.app-layout{height:100vh;border-radius:0;border:none}.side-panel{display:none}.message{max-width:92%}.ai-message{width:92%}}
+
+.file-bar{display:flex;gap:4px;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--surface-1)}
+.file-bar[hidden]{display:none}
+.file-bar button{background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:.74rem;color:var(--text-secondary);cursor:pointer;font-family:var(--font-mono)}
+.file-bar button.active{background:var(--surface-0);color:var(--text-primary);border-color:var(--border-strong)}
+.log-toolbar,.opt-actions{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.log-toolbar button,.opt-actions button{background:var(--surface-2);border:1px solid var(--border-strong);border-radius:6px;padding:5px 10px;font-size:.76rem;color:var(--text-primary);cursor:pointer}
+.log-toolbar button:hover,.opt-actions button:hover{background:var(--surface-3)}
+.log-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.chip{background:none;border:1px solid var(--border-strong);border-radius:20px;padding:2px 10px;font-size:.72rem;color:var(--text-muted);cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.log-off{background:var(--surface-2);border-left:3px solid var(--danger);padding:6px 10px;border-radius:4px;font-size:.78rem;margin-bottom:8px}
+.log-viewer .entry details{margin:4px 0 0;padding:3px 6px;border:1px solid var(--border);border-radius:5px;background:var(--surface-1)}
+.log-viewer .entry summary{cursor:pointer;font-family:var(--font-ui);font-size:.7rem;color:var(--text-secondary)}
+.log-viewer .entry pre{font-family:var(--font-mono);font-size:.68rem;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;margin-top:4px;background:var(--surface-2);padding:6px;border-radius:5px}
+.log-viewer .entry .errtxt{color:var(--danger);margin-top:4px}
+.opt{display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:.84rem;cursor:pointer;border-bottom:1px solid var(--border)}
+.opt.off{opacity:.45;cursor:not-allowed}
+.opt input[type=checkbox]{width:16px;height:16px;flex-shrink:0;accent-color:var(--accent)}
+.opt .opt-text{flex:1;display:flex;flex-direction:column;gap:1px}
+.opt .opt-text small{font-size:.7rem;color:var(--text-muted);line-height:1.35}
+.opt select{background:var(--surface-1);color:var(--text-primary);border:1px solid var(--border-strong);border-radius:6px;padding:4px 6px;font-size:.78rem;max-width:230px}
+.opt-note{font-size:.76rem;color:var(--text-muted);margin:0 0 6px;line-height:1.45}
 </style>
 </head>
 <body>
@@ -229,7 +252,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
       </div>
       <div class="side-body">
         <div class="side-tab" id="tab-preview" hidden><iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe></div>
-        <div class="side-tab" id="tab-code" hidden><pre class="code-preview"><code id="codeContent"></code></pre></div>
+        <div class="side-tab" id="tab-code" hidden><div class="file-bar" id="fileBar" hidden></div><pre class="code-preview"><code id="codeContent"></code></pre></div>
         <div class="side-tab" id="tab-raw" hidden><div class="raw-viewer" id="rawViewer"></div></div>
         <div class="side-tab" id="tab-log" hidden><div class="log-viewer" id="logViewer"></div></div>
         <div class="side-tab" id="tab-settings" hidden><div class="settings-viewer" id="settingsViewer"></div></div>
@@ -241,7 +264,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 <div class="modal-backdrop" id="settingsModal">
   <div class="modal">
     <div class="modal-header">
-      <h2>Settings · Account &amp; Models</h2>
+      <h2>Settings</h2>
       <button class="side-close" id="closeSettingsBtn" title="Close">×</button>
     </div>
     <div class="modal-body" id="settingsModalBody"></div>
@@ -277,56 +300,397 @@ function safeJSON(key, fallback) { try { const v = JSON.parse(localStorage.getIt
   });
 })();
 
-/* ---------- NETWORK LOG (capped) ---------- */
-window.__netLog = [];
-(function(){
-  const MAX = 200;
-  const push = e => { window.__netLog.push(e); if (window.__netLog.length > MAX) window.__netLog.shift(); };
-  const origFetch = window.fetch;
-  window.fetch = async function(...args) {
-    const start = performance.now();
-    const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || String(args[0]);
-    const method = (args[1] && args[1].method) || (args[0] && args[0].method) || 'GET';
-    let reqBody = '';
-    try { reqBody = args[1] && args[1].body ? String(args[1].body).slice(0, 2000) : ''; } catch(_) {}
-    const entry = { ts: new Date().toISOString(), method, url, reqBody, status: null, resBody: '', ms: null, error: null };
-    push(entry);
+/* ---------- SETTINGS (persisted) ---------- */
+const DEFAULT_SETTINGS = {
+  // Debug logging
+  debugEnabled: true,
+  logNetwork: true,      // fetch / XHR / WebSocket
+  logSdk: true,          // puter.* SDK calls
+  logStreamChunks: true, // every streamed chunk (SDK + network)
+  logEvents: true,       // app events
+  logConsole: true,      // console.* + uncaught errors + failed resource loads
+  logPreview: true,      // console/errors from inside the preview iframe
+  redact: true,          // mask tokens / keys / passwords
+  maxEntries: 500,
+  maxBody: 20000,        // chars per body/string, 0 = unlimited
+  // Debug report (Copy / Diag)
+  reportFormat: 'markdown',
+  reportPageHTML: true,
+  reportStripCode: true,
+  reportPreview: true,
+  reportChats: 'current',
+  reportAccount: false,
+  reportModels: false,
+  // Behaviour
+  enterToSend: true,
+  autoOpenPanel: true,
+  reasoningOpen: false,
+  usageRefreshSec: 60,
+  // Settings page sections
+  showAccount: true, showQuota: true, showUsage: true, showModels: true, showRawUsage: true
+};
+const SETTINGS_KEY = 'puter-settings';
+function loadSettings() { return Object.assign({}, DEFAULT_SETTINGS, safeJSON(SETTINGS_KEY, {})); }
+
+/* ---------- DEBUG LOG ----------
+ * One chronological log of everything the app does: network, Puter SDK calls (incl. streamed chunks),
+ * app events, console output, uncaught errors and preview-iframe output. Entries are plain JSON so they
+ * can be copied for an AI to debug. Always wrapped in try/catch so logging can never break the app. */
+const DebugLog = {
+  entries: [],
+  seq: 0,
+  settings: loadSettings(),
+  onChange: null,
+  CAT: { network: 'logNetwork', sdk: 'logSdk', event: 'logEvents', console: 'logConsole', preview: 'logPreview' },
+
+  on(cat) { const s = this.settings; return !!s.debugEnabled && (!cat || !!s[cat]); },
+  touch() { try { this.onChange && this.onChange(); } catch (_) {} },
+  trim() { const max = Number(this.settings.maxEntries) || 500; while (this.entries.length > max) this.entries.shift(); },
+  clear() { this.entries.length = 0; this.touch(); },
+
+  add(type, data) {
     try {
-      const res = await origFetch.apply(this, args);
-      entry.status = res.status;
-      entry.ms = Math.round(performance.now() - start);
-      // Only buffer small, non-streaming bodies for the log
+      if (!this.on(this.CAT[type])) return null;
+      const e = Object.assign({ id: ++this.seq, ts: new Date().toISOString(), t: Math.round(performance.now()), type }, data);
+      this.entries.push(e);
+      this.trim();
+      this.touch();
+      return e;
+    } catch (_) { return null; }
+  },
+  event(name, data) { return this.add('event', { name, data: data === undefined ? undefined : this.safe(data) }); },
+
+  /* ---- text helpers ---- */
+  clip(s) {
+    s = String(s ?? '');
+    const max = Number(this.settings.maxBody) || 0;
+    return (max > 0 && s.length > max) ? s.slice(0, max) + `…[truncated ${s.length - max} chars]` : s;
+  },
+  redactText(s) {
+    s = String(s ?? '');
+    if (!this.settings.redact) return s;
+    return s
+      .replace(/(authorization["']?\s*[:=]\s*["']?)(?:bearer\s+)?[^\s"',}&]+/gi, '$1[REDACTED]')
+      .replace(/((?:auth[_-]?token|access[_-]?token|refresh[_-]?token|api[_-]?key|apikey|password|secret|token)["']?\s*[:=]\s*["']?)[^\s"',}&]+/gi, '$1[REDACTED]')
+      .replace(/Bearer\s+[A-Za-z0-9._~+\/\-]+=*/g, 'Bearer [REDACTED]');
+  },
+  txt(s) { return this.clip(this.redactText(s)); },
+  SENSITIVE_KEY: /^(authorization|auth[_-]?token|access[_-]?token|refresh[_-]?token|token|api[_-]?key|apikey|secret|password|cookie|set-cookie)$/i,
+
+  /* JSON-safe copy of anything (errors, circular refs, DOM nodes, big strings) */
+  safe(v, depth = 0, seen = new WeakSet()) {
+    try {
+      if (v === null || v === undefined) return v;
+      const t = typeof v;
+      if (t === 'string') return this.txt(v);
+      if (t === 'number' || t === 'boolean') return v;
+      if (t === 'bigint') return String(v) + 'n';
+      if (t === 'symbol') return String(v);
+      if (t === 'function') return `[Function ${v.name || 'anonymous'}]`;
+      if (v instanceof Error) {
+        const o = { name: v.name, message: this.txt(v.message), stack: this.txt(v.stack || '') };
+        Object.keys(v).forEach(k => { o[k] = this.safe(v[k], depth + 1, seen); });
+        return o;
+      }
+      if (typeof Node !== 'undefined' && v instanceof Node) return `[${v.nodeName}]`;
+      if (typeof Blob !== 'undefined' && v instanceof Blob) return `[Blob ${v.type || 'unknown'} ${v.size} bytes]`;
+      if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return `[binary ${v.byteLength} bytes]`;
+      if (depth > 6) return '[depth limit]';
+      if (seen.has(v)) return '[circular]';
+      seen.add(v);
+      if (Array.isArray(v)) {
+        const out = v.slice(0, 200).map(x => this.safe(x, depth + 1, seen));
+        if (v.length > 200) out.push(`…${v.length - 200} more items`);
+        return out;
+      }
+      const out = {};
+      Object.keys(v).slice(0, 100).forEach(k => {
+        out[k] = (this.settings.redact && this.SENSITIVE_KEY.test(k)) ? '[REDACTED]' : this.safe(v[k], depth + 1, seen);
+      });
+      return out;
+    } catch (err) { return `[unserialisable: ${err && err.message}]`; }
+  },
+  fmtArgs(args) {
+    return this.txt(Array.prototype.map.call(args, a => {
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(this.safe(a)); } catch (_) { return String(a); }
+    }).join(' '));
+  },
+  bodyToString(b) {
+    try {
+      if (b == null) return '';
+      if (typeof b === 'string') return this.txt(b);
+      if (typeof URLSearchParams !== 'undefined' && b instanceof URLSearchParams) return this.txt(b.toString());
+      if (typeof FormData !== 'undefined' && b instanceof FormData) {
+        const o = {}; b.forEach((v, k) => { o[k] = (typeof v === 'string') ? v : `[File ${v.name || ''} ${v.size || 0} bytes]`; });
+        return this.txt(JSON.stringify(this.safe(o)));
+      }
+      if (typeof Blob !== 'undefined' && b instanceof Blob) return `[Blob ${b.type} ${b.size} bytes]`;
+      if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) return `[binary ${b.byteLength} bytes]`;
+      return this.txt(JSON.stringify(this.safe(b)));
+    } catch (_) { return '[unreadable body]'; }
+  },
+  headersToObj(h) {
+    const o = {};
+    try {
+      if (!h) return o;
+      if (typeof Headers !== 'undefined' && h instanceof Headers) h.forEach((v, k) => { o[k] = v; });
+      else if (Array.isArray(h)) h.forEach(([k, v]) => { o[k] = v; });
+      else Object.keys(h).forEach(k => { o[k] = h[k]; });
+      Object.keys(o).forEach(k => { o[k] = (this.settings.redact && this.SENSITIVE_KEY.test(k)) ? '[REDACTED]' : this.txt(o[k]); });
+    } catch (_) {}
+    return o;
+  },
+
+  /* Read a (cloned) response body in the background so streaming responses are logged too. */
+  captureBody(res, e) {
+    try {
       const ct = res.headers.get('content-type') || '';
-      if (!/event-stream|ndjson/i.test(ct)) {
-        try { res.clone().text().then(t => { entry.resBody = (t || '').slice(0, 4000); }).catch(()=>{}); } catch(_) {}
-      } else entry.resBody = '(streaming body not logged)';
+      if (ct && !/json|text|xml|javascript|event-stream|ndjson|x-www-form|html|csv/i.test(ct)) { e.resBody = `(non-text body: ${ct}; not logged)`; return; }
+      const streaming = /event-stream|ndjson/i.test(ct);
+      if (streaming && !this.settings.logStreamChunks) { e.resBody = '(streaming body not logged — enable "Streaming chunks" in Settings)'; return; }
+      const clone = res.clone();
+      if (!clone.body) return;
+      const reader = clone.body.getReader(), dec = new TextDecoder();
+      let acc = '';
+      (async () => {
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            acc += dec.decode(value, { stream: true });
+            const max = Number(this.settings.maxBody) || 0;
+            e.resBody = this.txt(acc);
+            if (max > 0 && acc.length > max) { try { await reader.cancel(); } catch (_) {} break; }
+            if (streaming) this.touch();
+          }
+        } catch (err) { e.resBodyError = String(err); }
+        e.resBody = this.txt(acc);
+        e.bodyComplete = true;
+        this.touch();
+      })();
+    } catch (_) {}
+  },
+
+  /* Wrap an async-iterable (streaming) SDK response so every chunk + the assembled result is logged. */
+  wrapStream(res, e, t0) {
+    const self = this;
+    let text = '', reasoning = '', usage = null, n = 0;
+    const finish = (status, extra) => {
+      if (!e) return;
+      e.ms = Math.round(performance.now() - t0);
+      e.status = status; e.chunkCount = n;
+      e.assembledText = self.txt(text);
+      if (reasoning) e.assembledReasoning = self.txt(reasoning);
+      if (usage) e.usage = self.safe(usage);
+      if (extra) Object.assign(e, extra);
+      self.touch();
+    };
+    return {
+      [Symbol.asyncIterator]() {
+        const it = res[Symbol.asyncIterator]();
+        return {
+          async next(v) {
+            try {
+              const r = await it.next(v);
+              if (r.done) { finish('ok'); return r; }
+              n++;
+              const p = r.value;
+              if (p && typeof p === 'object') {
+                if (typeof p.text === 'string') text += p.text;
+                const th = p.reasoning || p.thinking;
+                if (typeof th === 'string') reasoning += th;
+                if (p.usage) usage = p.usage;
+              }
+              if (e) {
+                e.chunkCount = n;
+                if (self.settings.logStreamChunks && n <= 5000) (e.chunks || (e.chunks = [])).push(self.safe(p));
+                self.touch();
+              }
+              return r;
+            } catch (err) { finish('error', { error: self.safe(err) }); throw err; }
+          },
+          async return(v) { finish('closed'); return it.return ? it.return(v) : { done: true, value: v }; },
+          async throw(err) { finish('error', { error: self.safe(err) }); if (it.throw) return it.throw(err); throw err; }
+        };
+      }
+    };
+  },
+
+  /* Wrap one puter.* method. Logs args, result / error, duration and streamed chunks. */
+  wrapSdk(obj, name, label) {
+    const orig = obj && obj[name];
+    if (typeof orig !== 'function' || orig.__dbgWrapped) return;
+    const self = this;
+    const wrapped = function (...args) {
+      if (!self.on('logSdk')) return orig.apply(this, args);
+      const t0 = performance.now();
+      const e = self.add('sdk', { name: label, args: self.safe(args), status: 'pending', ms: null });
+      const done = patch => { if (e) { e.ms = Math.round(performance.now() - t0); Object.assign(e, patch); self.touch(); } };
+      let ret;
+      try { ret = orig.apply(this, args); }
+      catch (err) { done({ status: 'error', error: self.safe(err) }); throw err; }
+      const isIter = x => x && typeof x[Symbol.asyncIterator] === 'function';
+      if (ret && typeof ret.then === 'function') {
+        return ret.then(res => {
+          if (isIter(res)) return self.wrapStream(res, e, t0);
+          done({ status: 'ok', result: self.safe(res) });
+          return res;
+        }, err => { done({ status: 'error', error: self.safe(err) }); throw err; });
+      }
+      if (isIter(ret)) return self.wrapStream(ret, e, t0);
+      done({ status: 'ok', result: self.safe(ret) });
+      return ret;
+    };
+    wrapped.__dbgWrapped = true;
+    try { obj[name] = wrapped; } catch (_) {}
+  },
+
+  /* Human/AI-readable text rendering of entries */
+  formatEntry(e) {
+    const j = v => (v === undefined || v === null || v === '') ? '' : (typeof v === 'string' ? v : JSON.stringify(v, null, 2));
+    const ind = s => String(s).split('\n').map(l => '    ' + l).join('\n');
+    const head = `[${e.ts}] #${e.id} `;
+    let s = '';
+    if (e.type === 'network') {
+      s = `${head}NETWORK ${e.kind || ''} ${e.method || ''} ${e.url} → ${e.status ?? (e.pending === false ? '?' : 'pending')}${e.ms != null ? ` (${e.ms}ms)` : ''}${e.error ? ` ERROR: ${e.error}` : ''}`;
+      if (e.reqHeaders && Object.keys(e.reqHeaders).length) s += `\n  request headers:\n${ind(j(e.reqHeaders))}`;
+      if (e.reqBody) s += `\n  request body:\n${ind(e.reqBody)}`;
+      if (e.resHeaders && Object.keys(e.resHeaders).length) s += `\n  response headers:\n${ind(j(e.resHeaders))}`;
+      if (e.resBody) s += `\n  response body:\n${ind(e.resBody)}`;
+      if (e.messages && e.messages.length) s += `\n  messages:\n${ind(j(e.messages))}`;
+    } else if (e.type === 'sdk') {
+      s = `${head}SDK ${e.name} → ${e.status}${e.ms != null ? ` (${e.ms}ms)` : ''}${e.chunkCount != null ? `, ${e.chunkCount} chunks` : ''}`;
+      if (e.args !== undefined) s += `\n  args:\n${ind(j(e.args))}`;
+      if (e.result !== undefined) s += `\n  result:\n${ind(j(e.result))}`;
+      if (e.assembledReasoning) s += `\n  assembled reasoning:\n${ind(e.assembledReasoning)}`;
+      if (e.assembledText) s += `\n  assembled text:\n${ind(e.assembledText)}`;
+      if (e.usage) s += `\n  usage:\n${ind(j(e.usage))}`;
+      if (e.chunks) s += `\n  chunks:\n${ind(j(e.chunks))}`;
+      if (e.error) s += `\n  error:\n${ind(j(e.error))}`;
+    } else if (e.type === 'event') {
+      s = `${head}EVENT ${e.name}${e.data !== undefined ? `\n${ind(j(e.data))}` : ''}`;
+    } else {
+      s = `${head}${e.type.toUpperCase()}${e.level ? '.' + e.level : ''} ${e.text || ''}${e.stack ? `\n${ind(e.stack)}` : ''}`;
+    }
+    return s;
+  },
+  formatAll(list) { return (list || this.entries).map(e => this.formatEntry(e)).join('\n\n'); }
+};
+window.DebugLog = DebugLog;
+window.__netLog = DebugLog.entries; // backwards-compatible alias
+
+/* ---- network hooks: fetch / XHR / WebSocket ---- */
+(function () {
+  const D = DebugLog;
+  const origFetch = window.fetch;
+  if (origFetch) window.fetch = async function (input, init) {
+    if (!D.on('logNetwork')) return origFetch.apply(this, arguments);
+    const t0 = performance.now();
+    let url = '', method = 'GET', reqHeaders = {}, reqBody = '';
+    try {
+      const isReq = typeof Request !== 'undefined' && input instanceof Request;
+      url = isReq ? input.url : String(input);
+      method = (init && init.method) || (isReq && input.method) || 'GET';
+      reqHeaders = D.headersToObj((init && init.headers) || (isReq && input.headers));
+      reqBody = init && init.body !== undefined ? D.bodyToString(init.body) : '';
+    } catch (_) {}
+    const e = D.add('network', { kind: 'fetch', method, url: D.redactText(url), reqHeaders, reqBody, status: null, ms: null, resBody: '', error: null, pending: true });
+    if (!e) return origFetch.apply(this, arguments);
+    try {
+      const res = await origFetch.apply(this, arguments);
+      e.status = res.status; e.ms = Math.round(performance.now() - t0); e.pending = false;
+      e.resHeaders = D.headersToObj(res.headers);
+      D.captureBody(res, e);
+      D.touch();
       return res;
     } catch (err) {
-      entry.ms = Math.round(performance.now() - start);
-      entry.error = String(err);
+      e.ms = Math.round(performance.now() - t0); e.pending = false; e.error = String(err); D.touch();
       throw err;
     }
   };
+
   const XO = window.XMLHttpRequest;
   if (XO) {
-    const open = XO.prototype.open, send = XO.prototype.send;
-    XO.prototype.open = function(method, url) {
-      this.__log = { ts: new Date().toISOString(), method, url: String(url), reqBody: '', status: null, resBody: '', ms: null, error: null };
-      this.__start = performance.now();
-      push(this.__log);
+    const open = XO.prototype.open, send = XO.prototype.send, setH = XO.prototype.setRequestHeader;
+    XO.prototype.open = function (method, url) {
+      try {
+        this.__dbg = D.on('logNetwork') ? D.add('network', { kind: 'xhr', method, url: D.redactText(String(url)), reqHeaders: {}, reqBody: '', status: null, ms: null, resBody: '', error: null, pending: true }) : null;
+        this.__dbgStart = performance.now();
+      } catch (_) {}
       return open.apply(this, arguments);
     };
-    XO.prototype.send = function(body) {
-      if (this.__log) { try { this.__log.reqBody = body ? String(body).slice(0, 2000) : ''; } catch(_) {} }
-      this.addEventListener('loadend', () => {
-        if (!this.__log) return;
-        this.__log.status = this.status;
-        this.__log.ms = Math.round(performance.now() - this.__start);
-        try { this.__log.resBody = (this.responseText || '').slice(0, 4000); } catch(_) {}
-      });
+    XO.prototype.setRequestHeader = function (k, v) {
+      try { if (this.__dbg) this.__dbg.reqHeaders[k] = (D.settings.redact && D.SENSITIVE_KEY.test(k)) ? '[REDACTED]' : D.txt(v); } catch (_) {}
+      return setH.apply(this, arguments);
+    };
+    XO.prototype.send = function (body) {
+      const e = this.__dbg;
+      if (e) {
+        try { e.reqBody = D.bodyToString(body); } catch (_) {}
+        ['error', 'timeout', 'abort'].forEach(ev => this.addEventListener(ev, () => { e.error = ev; }));
+        this.addEventListener('loadend', () => {
+          try {
+            e.status = this.status; e.pending = false; e.ms = Math.round(performance.now() - this.__dbgStart);
+            const hs = {}; (this.getAllResponseHeaders() || '').trim().split(/\r?\n/).forEach(l => { const i = l.indexOf(':'); if (i > 0) hs[l.slice(0, i).trim()] = l.slice(i + 1).trim(); });
+            e.resHeaders = D.headersToObj(hs);
+            if (!this.responseType || this.responseType === 'text') e.resBody = D.txt(this.responseText || '');
+            else e.resBody = `(responseType ${this.responseType}; not logged)`;
+          } catch (_) {}
+          D.touch();
+        });
+      }
       return send.apply(this, arguments);
     };
   }
+
+  const OrigWS = window.WebSocket;
+  if (OrigWS) {
+    const WS = function (url, protocols) {
+      const ws = protocols !== undefined ? new OrigWS(url, protocols) : new OrigWS(url);
+      try {
+        if (D.on('logNetwork')) {
+          const e = D.add('network', { kind: 'websocket', method: 'WS', url: D.redactText(String(url)), status: 'connecting', ms: null, error: null, pending: true, messages: [] });
+          if (e) {
+            const t0 = performance.now();
+            const msg = (dir, data) => { if (e.messages.length < 300) e.messages.push({ t: Math.round(performance.now() - t0), dir, data: D.bodyToString(data) }); D.touch(); };
+            ws.addEventListener('open', () => { e.status = 'open'; D.touch(); });
+            ws.addEventListener('message', ev => { if (D.settings.logStreamChunks) msg('in', ev.data); });
+            ws.addEventListener('error', () => { e.error = 'websocket error'; D.touch(); });
+            ws.addEventListener('close', ev => { e.status = `closed ${ev.code}`; e.ms = Math.round(performance.now() - t0); e.pending = false; D.touch(); });
+            const s = ws.send; ws.send = function (d) { if (D.settings.logStreamChunks) msg('out', d); return s.apply(this, arguments); };
+          }
+        }
+      } catch (_) {}
+      return ws;
+    };
+    WS.prototype = OrigWS.prototype;
+    ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach(k => { try { WS[k] = OrigWS[k]; } catch (_) {} });
+    window.WebSocket = WS;
+  }
+
+  /* console + uncaught errors + failed resource loads (e.g. puter.js blocked by CSP) */
+  ['log', 'info', 'warn', 'error', 'debug'].forEach(level => {
+    const orig = console[level];
+    if (typeof orig !== 'function') return;
+    console[level] = function () {
+      try { if (D.on('logConsole')) D.add('console', { level, text: D.fmtArgs(arguments) }); } catch (_) {}
+      return orig.apply(this, arguments);
+    };
+  });
+  window.addEventListener('error', ev => {
+    try {
+      if (ev.target && ev.target !== window && ev.target.tagName) {
+        const t = ev.target;
+        D.add('console', { level: 'resource-error', text: `Failed to load <${t.tagName.toLowerCase()}> ${D.redactText(t.src || t.href || '')}` });
+      } else {
+        D.add('console', { level: 'uncaught', text: D.txt(`${ev.message} @ ${ev.filename}:${ev.lineno}:${ev.colno}`), stack: ev.error && ev.error.stack ? D.txt(ev.error.stack) : undefined });
+      }
+    } catch (_) {}
+  }, true);
+  window.addEventListener('unhandledrejection', ev => {
+    try { D.add('console', { level: 'unhandledrejection', text: D.fmtArgs([ev.reason]), stack: ev.reason && ev.reason.stack ? D.txt(ev.reason.stack) : undefined }); } catch (_) {}
+  });
 })();
 
 /* ---------- PROVIDER LABEL ---------- */
@@ -390,6 +754,47 @@ function normaliseUsage(u) {
   return { inTok, outTok, cachedTok, thinkingTok, usd, credits, raw: u };
 }
 
+/* ---------- SETTINGS SCHEMA (drives the Settings UI) ---------- */
+const SETTINGS_SCHEMA = [
+  { group: 'Debug logging', note: 'Records everything the app does so you can copy it for an AI to debug: network calls, Puter SDK calls (with streamed chunks), app events, console output and errors, and output from the generated website.', actions: true, items: [
+    { key: 'debugEnabled', type: 'bool', label: 'Enable debug logging', help: 'Master switch for everything below.' },
+    { key: 'logNetwork', type: 'bool', needsLog: true, label: 'Network calls', help: 'fetch, XHR and WebSocket requests: headers, bodies, responses (streamed responses included).' },
+    { key: 'logSdk', type: 'bool', needsLog: true, label: 'Puter SDK calls', help: 'puter.ai.chat, listModels, auth…: arguments, results, errors and timing.' },
+    { key: 'logStreamChunks', type: 'bool', needsLog: true, label: 'Streaming chunks', help: 'Keep every streamed chunk. Turn off for smaller logs; the assembled text is still kept.' },
+    { key: 'logEvents', type: 'bool', needsLog: true, label: 'App events', help: 'Sending, responses, errors, preview builds, settings changes.' },
+    { key: 'logConsole', type: 'bool', needsLog: true, label: 'Console output & uncaught errors', help: 'console.*, uncaught errors, unhandled promise rejections, scripts that failed to load.' },
+    { key: 'logPreview', type: 'bool', needsLog: true, label: 'Preview website console & errors', help: 'Console output and errors from the generated site in the Preview tab.' },
+    { key: 'redact', type: 'bool', needsLog: true, label: 'Redact tokens, keys & passwords', help: 'Masks authorization headers and token/key/password values in the log.' },
+    { key: 'maxEntries', type: 'select', numeric: true, needsLog: true, label: 'Max log entries', options: [[100, '100'], [200, '200'], [500, '500'], [1000, '1,000'], [2000, '2,000']] },
+    { key: 'maxBody', type: 'select', numeric: true, needsLog: true, label: 'Max size per body / string', options: [[2000, '2 KB'], [10000, '10 KB'], [20000, '20 KB'], [100000, '100 KB'], [0, 'Unlimited']] }
+  ] },
+  { group: 'Debug report (Diag button / Copy report)', items: [
+    { key: 'reportFormat', type: 'select', label: 'Format', options: [['markdown', 'Markdown (best to paste into an AI chat)'], ['json', 'JSON']] },
+    { key: 'reportPageHTML', type: 'bool', label: 'Rendered HTML of this app', help: 'Snapshot of the live page DOM.' },
+    { key: 'reportStripCode', type: 'bool', label: 'Omit script/style contents from that HTML', help: 'Keeps the report small; the markup and current state are still included.' },
+    { key: 'reportPreview', type: 'bool', label: 'Preview website: source + rendered DOM', help: 'The generated site as sent to the preview, and its DOM after it ran.' },
+    { key: 'reportChats', type: 'select', label: 'Chats', options: [['none', 'Not included'], ['current', 'Current chat'], ['all', 'All chats']] },
+    { key: 'reportAccount', type: 'bool', label: 'Account info (username / UUID)' },
+    { key: 'reportModels', type: 'bool', label: 'Full model list', help: 'Large. The listModels call itself is already in the log.' }
+  ] },
+  { group: 'Behaviour', items: [
+    { key: 'theme', type: 'select', label: 'Theme', options: [['light', 'Light'], ['dark', 'Dark']] },
+    { key: 'enterToSend', type: 'bool', label: 'Enter sends the message', help: 'Off: Enter adds a new line and Ctrl/Cmd+Enter sends.' },
+    { key: 'autoOpenPanel', type: 'bool', label: 'Open the preview panel when a reply contains code' },
+    { key: 'reasoningOpen', type: 'bool', label: 'Expand reasoning blocks by default' },
+    { key: 'usageRefreshSec', type: 'select', numeric: true, label: 'Auto-refresh quota', options: [[0, 'Off'], [30, 'Every 30 s'], [60, 'Every 60 s'], [300, 'Every 5 min']] }
+  ] },
+  { group: 'Show on this page', items: [
+    { key: 'showAccount', type: 'bool', label: 'Account' },
+    { key: 'showQuota', type: 'bool', label: 'Quota' },
+    { key: 'showUsage', type: 'bool', label: 'Usage this month' },
+    { key: 'showRawUsage', type: 'bool', label: 'Raw usage JSON' },
+    { key: 'showModels', type: 'bool', label: 'All models' }
+  ] }
+];
+const SETTING_DEFS = {};
+SETTINGS_SCHEMA.forEach(g => g.items.forEach(i => { SETTING_DEFS[i.key] = i; }));
+
 /* ---------- APP ---------- */
 class AIChatApp {
   constructor() {
@@ -437,6 +842,11 @@ class AIChatApp {
     this.availableTabs = [];
     this.lastQuota = null;
     this.accountInfo = null;
+    this.settings = DebugLog.settings;
+    this.logFilter = new Set(['network', 'sdk', 'event', 'console', 'preview']);
+    this.openLog = new Set();
+    this.codeFileIdx = 0; this.codeShown = null; this.previewSource = '';
+    this._logTimer = null; this._usageTimer = null; this._instrumented = false;
 
     this.init();
   }
@@ -456,7 +866,9 @@ class AIChatApp {
     this.setupResizers();
     this.setupScrollHelper();
     this.updateTotalUsage();
-    this.renderNetworkLog();
+    this.installHooks();
+    this.applyUsageTimer();
+    this.renderLogViewer();
 
     if (!this.puterReady()) {
       this.showBanner('Puter.js did not load — CSP or network issue. Open Log for details.');
@@ -466,6 +878,7 @@ class AIChatApp {
       this.openTabs(['log'], 'log');
       return;
     }
+    this.instrumentPuter();
     this.setLoading('Connecting to Puter…');
     let signedIn = false;
     try { signedIn = await puter.auth.isSignedIn(); } catch (_) {}
@@ -499,7 +912,7 @@ class AIChatApp {
       this.updateSendState();
     });
     this.chatInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); this.handleSend(); }
+      if (e.key === 'Enter' && !e.isComposing && (this.settings.enterToSend ? !e.shiftKey : (e.ctrlKey || e.metaKey))) { e.preventDefault(); this.handleSend(); }
     });
     this.chatInput.addEventListener('paste', e => {
       const text = e.clipboardData.getData('text');
@@ -509,8 +922,8 @@ class AIChatApp {
     this.$('toggleThemeBtn').addEventListener('click', () => {
       const cur = document.documentElement.getAttribute('data-theme');
       const next = cur === 'light' ? 'dark' : 'light';
-      document.documentElement.setAttribute('data-theme', next);
-      try { localStorage.setItem('puter-theme', next); } catch (_) {}
+      this.setTheme(next);
+      this.refreshSettingsUI();
     });
 
     this.providerSelect.addEventListener('change', () => {
@@ -535,7 +948,6 @@ class AIChatApp {
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.focusSearch(); }
     });
 
-    setInterval(() => { if (this.signedIn) this.loadUsage(); }, 60000);
   }
 
   // Search was wired up but never implemented: filter the history list.
@@ -574,7 +986,7 @@ class AIChatApp {
     this.renderTabs();
     ['preview','code','raw','log','settings'].forEach(n => { this.$('tab-' + n).hidden = t !== n; });
     if (t === 'raw') this.renderResponseViewer();
-    if (t === 'log') this.renderNetworkLog();
+    if (t === 'log') this.renderLogViewer();
     if (t === 'settings') this.renderSettingsView();
     this.updateCopyLabel();
     this.updateSideTitle();
@@ -584,11 +996,11 @@ class AIChatApp {
     if (this.activeTab === 'raw' && this.currentRaw) {
       this.sideTitle.innerHTML = `<b>Response</b><span class="sep">·</span>${esc(this.currentRaw.model || '')}`;
     } else if (this.activeTab === 'log') {
-      this.sideTitle.innerHTML = `<b>Network log</b>`;
+      this.sideTitle.innerHTML = `<b>Debug log</b><span class="sep">·</span>${DebugLog.entries.length} entries`;
     } else if (this.activeTab === 'settings') {
       this.sideTitle.innerHTML = `<b>Settings</b>`;
     } else if (this.currentPanelState) {
-      this.sideTitle.innerHTML = `<b>${esc(this.currentPanelState.fileName)}</b><span class="sep">·</span>${esc(this.currentPanelState.lang)}`;
+      this.sideTitle.innerHTML = `<b>${esc(this.currentPanelState.fileName)}</b><span class="sep">·</span>${esc(this.currentPanelState.label || this.currentPanelState.lang)}`;
     } else this.sideTitle.innerHTML = '';
   }
 
@@ -600,8 +1012,9 @@ class AIChatApp {
   async copyCurrent() {
     let text = '';
     if (this.activeTab === 'raw') text = JSON.stringify(this.currentRaw, null, 2);
-    else if (this.activeTab === 'log') text = this.formatNetLog();
+    else if (this.activeTab === 'log') text = this.formatLog();
     else if (this.activeTab === 'settings') text = this.settingsViewer.innerText;
+    else if (this.activeTab === 'preview') text = (this.currentPanelState && this.currentPanelState.code) || '';
     else text = this.codeContent.textContent;
     try { await navigator.clipboard.writeText(text); this.copyBtn.textContent = 'Copied!'; }
     catch (_) { this.copyBtn.textContent = 'Copy failed'; }
@@ -609,44 +1022,229 @@ class AIChatApp {
   }
 
   downloadCurrent() {
+    if (this.activeTab === 'log') return this.downloadReport();
     const s = this.currentPanelState; if (!s) return;
-    const blob = new Blob([s.code], { type: 'text/plain' });
+    const f = this.activeTab === 'code' && this.codeShown ? this.codeShown : { name: s.fileName, code: s.code };
+    this.saveBlob(f.code, f.name, 'text/plain');
+  }
+
+  saveBlob(text, name, type) {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = s.fileName;   // fileName already includes the extension
+    a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+    a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  formatNetLog() {
-    return window.__netLog.map(e => {
-      let s = `[${e.ts}] ${e.method} ${e.url}\n`;
-      s += `  → status: ${e.status ?? '?'} · ${e.ms ?? '?'}ms\n`;
-      if (e.reqBody) s += `  → request: ${e.reqBody}\n`;
-      if (e.resBody) s += `  → response: ${e.resBody}\n`;
-      if (e.error) s += `  → error: ${e.error}\n`;
-      return s;
-    }).join('\n');
+  formatLog() { return DebugLog.entries.length ? DebugLog.formatAll() : '(debug log is empty)'; }
+
+  /* ---------- debug report ---------- */
+  snapshotPageHTML() {
+    const S = this.settings;
+    const clone = document.documentElement.cloneNode(true);
+    if (S.reportStripCode) {
+      clone.querySelectorAll('script,style').forEach(n => {
+        n.replaceWith(document.createComment(` ${n.tagName.toLowerCase()}${n.src ? ' src=' + n.src : ''}: ${(n.textContent || '').length} chars omitted `));
+      });
+    }
+    const f = clone.querySelector('#previewFrame');
+    if (f && S.reportPreview && f.hasAttribute('srcdoc')) f.setAttribute('srcdoc', '[see the Preview section of this report]');
+    return '<!DOCTYPE html>\n' + clone.outerHTML;
   }
 
-  async copyDiagnostics() {
-    const diag = {
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent,
-      url: location.href,
-      theme: document.documentElement.getAttribute('data-theme'),
-      puterLoaded: typeof window.puter !== 'undefined',
-      pageHTML: document.documentElement.outerHTML,
-      networkLog: window.__netLog,
-      chats: this.chats,
-      models: this.modelsByProvider,
-      account: this.accountInfo,
-      quota: this.lastQuota
+  renderedPreviewHTML() {
+    if (!this.currentPanelState) return null;
+    try {
+      const d = this.previewFrame.contentDocument;
+      if (!d || !d.documentElement) return '(preview document not available)';
+      const c = d.documentElement.cloneNode(true);
+      const hook = c.querySelector('#__dbg_capture'); if (hook) hook.remove();
+      return '<!DOCTYPE html>\n' + c.outerHTML;
+    } catch (err) { return `(preview DOM not accessible: ${err.message})`; }
+  }
+
+  buildReport() {
+    const S = this.settings, D = DebugLog;
+    const counts = {}; D.entries.forEach(e => { counts[e.type] = (counts[e.type] || 0) + 1; });
+    const problems = D.entries.filter(e => this.entryClass(e) === 'err').slice(-15)
+      .map(e => ({ id: e.id, ts: e.ts, type: e.type, what: e.name || e.url || e.level || '', status: e.status, error: e.error || e.text || undefined }));
+    const r = {
+      meta: {
+        generatedAt: new Date().toISOString(), url: D.redactText(location.href), userAgent: navigator.userAgent,
+        viewport: `${innerWidth}x${innerHeight}`, theme: document.documentElement.getAttribute('data-theme'),
+        puterLoaded: this.puterReady(), signedIn: this.signedIn, selectedModel: this.modelSelect.value || null,
+        build: (this.$('build') || {}).textContent || '', currentChatId: this.currentChatId, activeTab: this.activeTab
+      },
+      settings: Object.assign({}, S),
+      summary: { totalEntries: D.entries.length, entryCounts: counts, recentProblems: problems },
+      log: D.entries.slice(),
+      quota: this.lastQuota || null
     };
-    const btn = this.$('diagnosticsBtn');
-    try { await navigator.clipboard.writeText(JSON.stringify(diag, null, 2)); btn.textContent = 'Copied!'; }
-    catch (_) { btn.textContent = 'Failed'; }
-    setTimeout(() => btn.textContent = 'Diag', 1500);
+    if (S.reportPageHTML) r.pageHTML = this.snapshotPageHTML();
+    const st = this.currentPanelState;
+    if (S.reportPreview && st) {
+      r.preview = {
+        files: st.files.map(f => st.bundle ? { name: f.name, lang: f.lang, chars: f.code.length } : { name: f.name, lang: f.lang, code: f.code }),
+        sourceSentToPreview: this.previewSource || st.code,
+        renderedHTML: this.renderedPreviewHTML()
+      };
+    }
+    const strip = c => Object.assign({}, c, { messages: (c.messages || []).map(m => { const o = Object.assign({}, m); delete o.chunks; return o; }) });
+    if (S.reportChats === 'all') r.chats = Object.fromEntries(Object.entries(this.chats).map(([k, c]) => [k, strip(c)]));
+    else if (S.reportChats === 'current' && this.chats[this.currentChatId]) r.chats = { [this.currentChatId]: strip(this.chats[this.currentChatId]) };
+    if (S.reportAccount) r.account = this.accountInfo;
+    if (S.reportModels) r.models = this.allModels;
+    return r;
+  }
+
+  formatReport(r) {
+    if (this.settings.reportFormat === 'json') return JSON.stringify(r, null, 2);
+    const F = '`'.repeat(5);
+    const fence = (lang, body) => `${F}${lang}\n${body}\n${F}\n\n`;
+    const json = v => JSON.stringify(v, null, 2);
+    let s = `# AI Chat debug report\n\nGenerated ${r.meta.generatedAt}. Contains: environment, settings, summary, chronological log of calls and responses, and (if enabled) the rendered HTML of the preview website and of this app.\n\n`;
+    s += `## Environment\n${fence('json', json(r.meta))}`;
+    s += `## Settings\n${fence('json', json(r.settings))}`;
+    s += `## Summary\n${fence('json', json(r.summary))}`;
+    s += `## Log (oldest first, ${r.log.length} entries)\n${fence('text', r.log.length ? DebugLog.formatAll(r.log) : '(empty)')}`;
+    if (r.preview) {
+      s += `## Preview website\n`;
+      r.preview.files.forEach(f => { s += f.code !== undefined ? `### Source file: ${f.name}\n${fence(f.lang || 'text', f.code)}` : `- Source file ${f.name} (${f.lang}, ${f.chars} chars, inlined in the page below)\n`; });
+      s += `\n### Page as sent to the preview iframe\n${fence('html', r.preview.sourceSentToPreview)}`;
+      s += `### Rendered DOM of the preview after it ran\n${fence('html', r.preview.renderedHTML || '(none)')}`;
+    }
+    if (r.pageHTML) s += `## Rendered HTML of this app\n${fence('html', r.pageHTML)}`;
+    if (r.chats) s += `## Chats\n${fence('json', json(r.chats))}`;
+    if (r.account) s += `## Account\n${fence('json', json(r.account))}`;
+    if (r.quota) s += `## Quota\n${fence('json', json(r.quota))}`;
+    if (r.models) s += `## Models\n${fence('json', json(r.models))}`;
+    return s;
+  }
+
+  async copyReport(btn) {
+    const label = btn ? btn.textContent : '';
+    let text;
+    try { text = this.formatReport(this.buildReport()); } catch (err) { text = 'Report generation failed: ' + (err && err.stack || err); }
+    let msg = 'Copied!';
+    try { await navigator.clipboard.writeText(text); } catch (_) { msg = 'Failed — use Download'; }
+    DebugLog.event('report-copied', { chars: text.length, ok: msg === 'Copied!' });
+    if (btn) { btn.textContent = msg; setTimeout(() => { btn.textContent = label; }, 1800); }
+  }
+  copyDiagnostics() { return this.copyReport(this.$('diagnosticsBtn')); }
+
+  downloadReport() {
+    const text = this.formatReport(this.buildReport());
+    const ext = this.settings.reportFormat === 'json' ? 'json' : 'md';
+    this.saveBlob(text, `ai-chat-debug-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.${ext}`, 'text/plain');
+    DebugLog.event('report-downloaded', { chars: text.length });
+  }
+
+  /* ---------- hooks ---------- */
+  installHooks() {
+    DebugLog.onChange = () => this.scheduleLogRender();
+    window.addEventListener('message', ev => {
+      try {
+        if (ev.source !== this.previewFrame.contentWindow) return;
+        const d = ev.data;
+        if (!d || !d.__previewLog) return;
+        DebugLog.add('preview', { level: String(d.level), text: DebugLog.txt(d.text) });
+      } catch (_) {}
+    });
+    this.previewFrame.addEventListener('load', () => {
+      if (this.currentPanelState) DebugLog.add('preview', { level: 'info', text: 'preview iframe loaded' });
+    });
+    this.logViewer.addEventListener('toggle', ev => {
+      const d = ev.target;
+      if (d && d.dataset && d.dataset.k) { if (d.open) this.openLog.add(d.dataset.k); else this.openLog.delete(d.dataset.k); }
+    }, true);
+    this.logViewer.addEventListener('click', ev => {
+      const f = ev.target.closest('[data-filter]');
+      if (f) { const t = f.dataset.filter; if (this.logFilter.has(t)) this.logFilter.delete(t); else this.logFilter.add(t); this.renderLogViewer(); return; }
+      const b = ev.target.closest('[data-action]');
+      if (b) this.onAction(b.dataset.action, b);
+    });
+    [this.$('settingsModalBody'), this.settingsViewer].forEach(c => {
+      c.addEventListener('change', ev => { const el = ev.target.closest('[data-setting]'); if (el) this.onSettingChange(el); });
+      c.addEventListener('click', ev => { const b = ev.target.closest('[data-action]'); if (b) this.onAction(b.dataset.action, b); });
+    });
+    DebugLog.event('app-start', { userAgent: navigator.userAgent, viewport: `${innerWidth}x${innerHeight}`, puterLoaded: this.puterReady() });
+  }
+
+  scheduleLogRender() {
+    this.netLogToggleBtn.classList.toggle('hidden', DebugLog.entries.length === 0);
+    if (this._logTimer) return;
+    this._logTimer = setTimeout(() => {
+      this._logTimer = null;
+      if (this.activeTab === 'log' && !this.sidePanel.classList.contains('hidden')) this.renderLogViewer();
+    }, 250);
+  }
+
+  /* Wrap the Puter SDK so every call (args, result, errors, streamed chunks) lands in the log. */
+  instrumentPuter() {
+    if (!this.puterReady() || this._instrumented) return;
+    this._instrumented = true;
+    const targets = { ai: ['chat', 'listModels', 'txt2img', 'img2txt', 'txt2speech'], auth: ['isSignedIn', 'signIn', 'signOut', 'getUser', 'getMonthlyUsage'] };
+    Object.keys(targets).forEach(ns => targets[ns].forEach(n => { try { DebugLog.wrapSdk(puter[ns], n, `puter.${ns}.${n}`); } catch (_) {} }));
+    DebugLog.event('sdk-instrumented', { puterLoaded: true });
+  }
+
+  /* ---------- settings ---------- */
+  saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch (_) {} }
+
+  setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('puter-theme', t); } catch (_) {}
+  }
+
+  applyUsageTimer() {
+    clearInterval(this._usageTimer);
+    const s = Number(this.settings.usageRefreshSec) || 0;
+    if (s > 0) this._usageTimer = setInterval(() => { if (this.signedIn) this.loadUsage(); }, s * 1000);
+  }
+
+  onSettingChange(el) {
+    const key = el.dataset.setting, def = SETTING_DEFS[key];
+    if (!def) return;
+    let val = def.type === 'bool' ? el.checked : el.value;
+    if (def.numeric) val = Number(val);
+    if (key === 'theme') this.setTheme(val);
+    else { this.settings[key] = val; this.saveSettings(); }
+    DebugLog.event('setting-changed', { key, value: val });
+    if (key === 'usageRefreshSec') this.applyUsageTimer();
+    if (key === 'maxEntries') DebugLog.trim();
+    this.refreshSettingsUI(key);
+    this.scheduleLogRender();
+  }
+
+  refreshSettingsUI(focusKey) {
+    const targets = [];
+    if (this.$('settingsModal').classList.contains('open')) targets.push(this.$('settingsModalBody'));
+    if (this.activeTab === 'settings') targets.push(this.settingsViewer);
+    if (!targets.length) return;
+    const html = this.settingsHTML();
+    targets.forEach(t => {
+      const sc = t.scrollTop;
+      t.innerHTML = html;
+      t.scrollTop = sc;
+      const f = focusKey && t.querySelector(`[data-setting="${focusKey}"]`);
+      if (f) f.focus();
+    });
+  }
+
+  async onAction(action, btn) {
+    const flash = (txt) => { const o = btn.textContent; btn.textContent = txt; setTimeout(() => { btn.textContent = o; }, 1500); };
+    if (action === 'copy-report') await this.copyReport(btn);
+    else if (action === 'download-report') this.downloadReport();
+    else if (action === 'copy-log') {
+      try { await navigator.clipboard.writeText(this.formatLog()); flash('Copied!'); } catch (_) { flash('Failed'); }
+    } else if (action === 'clear-log') { DebugLog.clear(); this.renderLogViewer(); this.refreshSettingsUI(); }
+    else if (action === 'open-log') { this.$('settingsModal').classList.remove('open'); this.openTabs(['log'], 'log'); }
+    else if (action === 'reset-settings') {
+      Object.assign(this.settings, DEFAULT_SETTINGS);
+      this.saveSettings(); this.applyUsageTimer(); DebugLog.trim();
+      DebugLog.event('settings-reset');
+      this.refreshSettingsUI(); this.scheduleLogRender();
+    }
   }
 
   loadTheme() { const s = localStorage.getItem('puter-theme'); if (s) document.documentElement.setAttribute('data-theme', s); }
@@ -852,7 +1450,7 @@ class AIChatApp {
     const chat = this.chats[this.currentChatId];
     const hasCode = !!(chat && chat.messages.some(m => m.role === 'ai' && this.extractCode(m.content)));
     this.codeToggleBtn.classList.toggle('hidden', !hasCode);
-    this.netLogToggleBtn.classList.toggle('hidden', window.__netLog.length === 0);
+    this.netLogToggleBtn.classList.toggle('hidden', DebugLog.entries.length === 0);
   }
 
   isNearBottom() {
@@ -902,6 +1500,7 @@ class AIChatApp {
     this.saveChats();
 
     const model = this.modelSelect.value;
+    DebugLog.event('send', { model, chatId, historyMessages: history.length, promptChars: fullMsg.length, hadAttachments: !!prefix });
     const raw = [];
     let usageInfo = null;
     let reasoningText = '';
@@ -937,11 +1536,13 @@ class AIChatApp {
       this.saveChats();
       this.updateTotalUsage();
       this.updateMsgMeta(aiEl, usageInfo, raw, model);
-      if (stillViewing()) { this.showCodeInPanel(full); this.refreshCodeButton(); }
+      DebugLog.event('response-complete', { model, chars: full.length, chunks: raw.length, reasoningChars: reasoningText.length, usage: usageInfo });
+      if (stillViewing()) { this.showCodeInPanel(full, { open: this.settings.autoOpenPanel }); this.refreshCodeButton(); }
       this.renderNetworkLog();
       await this.loadUsage();
     } catch (err) {
       console.error(err);
+      DebugLog.event('send-error', { model, error: err });
       // Drop the failed user turn from history so the next request isn't two user messages in a row
       const last = chat.messages[chat.messages.length - 1];
       if (last && last.role === 'user') chat.messages.pop();
@@ -962,6 +1563,7 @@ class AIChatApp {
     wrap.className = 'reasoning';
     wrap.innerHTML = `<summary>Reasoning</summary><pre></pre>`;
     wrap.querySelector('pre').textContent = text;
+    if (this.settings.reasoningOpen) wrap.open = true;
     aiEl.insertBefore(wrap, aiEl.querySelector('.message-content'));
     return wrap;
   }
@@ -1029,54 +1631,125 @@ class AIChatApp {
     this.rawViewer.innerHTML = html;
   }
 
-  renderNetworkLog() {
+  renderNetworkLog() { this.renderLogViewer(); }   // kept for existing call sites
+
+  entryClass(e) {
+    const st = e.status;
+    if (e.error || st === 'error' || (typeof st === 'number' && st >= 500)) return 'err';
+    if (['error', 'uncaught', 'unhandledrejection', 'resource-error'].includes(e.level)) return 'err';
+    if (e.type === 'event' && /error|fail/i.test(e.name || '')) return 'err';
+    if ((typeof st === 'number' && st >= 400) || e.level === 'warn') return 'warn';
+    if ((typeof st === 'number' && st >= 200 && st < 400) || st === 'ok') return 'ok';
+    return '';
+  }
+
+  entryHTML(e) {
+    const blk = (label, v) => {
+      if (v === undefined || v === null || v === '') return '';
+      if (typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length) return '';
+      const text = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+      const k = `${e.id}:${label}`;
+      const shown = text.length > 8000 ? text.slice(0, 8000) + `\n…[${text.length - 8000} more chars — use Copy report for everything]` : text;
+      return `<details data-k="${esc(k)}" ${this.openLog.has(k) ? 'open' : ''}><summary>${esc(label)} <span class="k">${text.length} chars</span></summary><pre>${esc(shown)}</pre></details>`;
+    };
+    let title = '', body = '';
+    if (e.type === 'network') {
+      title = `${e.kind || 'net'} ${e.method || ''} ${e.status ?? '…'} · ${e.ms ?? '…'}ms`;
+      body = `<div>${esc(e.url)}</div>${e.error ? `<div class="errtxt">${esc(e.error)}</div>` : ''}` +
+        blk('request headers', e.reqHeaders) + blk('request body', e.reqBody) +
+        blk('response headers', e.resHeaders) + blk('response body', e.resBody) + blk('messages', e.messages);
+    } else if (e.type === 'sdk') {
+      title = `sdk ${e.name} · ${e.status}${e.ms != null ? ` · ${e.ms}ms` : ''}${e.chunkCount != null ? ` · ${e.chunkCount} chunks` : ''}`;
+      body = blk('args', e.args) + blk('result', e.result) + blk('assembled reasoning', e.assembledReasoning) + blk('assembled text', e.assembledText) +
+        blk('usage', e.usage) + blk('chunks', e.chunks) + blk('error', e.error);
+    } else if (e.type === 'event') {
+      title = `event · ${e.name}`;
+      body = blk('data', e.data);
+    } else {
+      title = `${e.type}${e.level ? '.' + e.level : ''}`;
+      body = `<div>${esc(e.text)}</div>` + blk('stack', e.stack);
+    }
+    return `<div class="entry ${this.entryClass(e)}"><div class="meta"><span>#${e.id} ${esc(title)}</span><span>${esc((e.ts || '').slice(11, 23))}</span></div>${body}</div>`;
+  }
+
+  renderLogViewer() {
     if (!this.logViewer) return;
-    this.netLogToggleBtn.classList.toggle('hidden', window.__netLog.length === 0);
-    let html = `<h4>Network calls (${window.__netLog.length})</h4>`;
-    window.__netLog.forEach((e, i) => {
-      let cls = 'entry';
-      if (e.error || e.status >= 500) cls += ' err';
-      else if (e.status >= 400) cls += ' warn';
-      else if (e.status >= 200 && e.status < 300) cls += ' ok';
-      html += `<div class="${cls}">
-        <div class="meta"><span>#${i + 1} ${esc(e.method)} ${esc(e.status ?? '?')}</span><span>${esc(e.ms ?? '?')}ms</span></div>
-        <div>${esc(e.url)}</div>
-        ${e.reqBody ? `<div style="margin-top:4px;color:var(--text-muted)">→ ${esc(e.reqBody)}</div>` : ''}
-        ${e.resBody ? `<div style="margin-top:4px;color:var(--text-muted)">← ${esc(e.resBody)}</div>` : ''}
-        ${e.error ? `<div style="color:var(--danger);margin-top:4px">${esc(e.error)}</div>` : ''}
-      </div>`;
-    });
-    this.logViewer.innerHTML = html;
+    const all = DebugLog.entries;
+    this.netLogToggleBtn.classList.toggle('hidden', all.length === 0);
+    if (this.activeTab !== 'log') return;
+    const v = this.logViewer;
+    const atBottom = v.scrollHeight - v.scrollTop - v.clientHeight < 40;
+    const prevTop = v.scrollTop;
+    const types = ['network', 'sdk', 'event', 'console', 'preview'];
+    const counts = {}; all.forEach(e => { counts[e.type] = (counts[e.type] || 0) + 1; });
+    const shown = all.filter(e => this.logFilter.has(e.type));
+    let html = '';
+    if (!DebugLog.settings.debugEnabled) html += `<div class="log-off">Debug logging is off — enable it in Settings (⚙).</div>`;
+    html += `<div class="log-toolbar"><button data-action="copy-report" title="Log + rendered HTML of the page and the preview">Copy report</button><button data-action="download-report">Download report</button><button data-action="copy-log">Copy log only</button><button data-action="clear-log">Clear</button></div>`;
+    html += `<div class="log-filters">${types.map(t => `<button class="chip ${this.logFilter.has(t) ? 'on' : ''}" data-filter="${t}">${t} ${counts[t] || 0}</button>`).join('')}</div>`;
+    html += `<h4>Debug log (${shown.length}${shown.length !== all.length ? ' of ' + all.length : ''})</h4>`;
+    shown.forEach(e => { html += this.entryHTML(e); });
+    v.innerHTML = html;
+    v.scrollTop = atBottom ? v.scrollHeight : prevTop;
   }
 
   renderSettingsView() { if (this.settingsViewer) this.settingsViewer.innerHTML = this.settingsHTML(); }
 
+  optionHTML(it) {
+    const S = this.settings;
+    const cur = it.key === 'theme' ? (document.documentElement.getAttribute('data-theme') || 'light') : S[it.key];
+    const dis = it.needsLog && !S.debugEnabled ? ' disabled' : '';
+    const text = `<span class="opt-text">${esc(it.label)}${it.help ? `<small>${esc(it.help)}</small>` : ''}</span>`;
+    if (it.type === 'bool') return `<label class="opt${dis ? ' off' : ''}"><input type="checkbox" data-setting="${it.key}"${cur ? ' checked' : ''}${dis}>${text}</label>`;
+    const opts = it.options.map(([val, lab]) => `<option value="${esc(val)}"${String(cur) === String(val) ? ' selected' : ''}>${esc(lab)}</option>`).join('');
+    return `<label class="opt${dis ? ' off' : ''}">${text}<select data-setting="${it.key}"${dis}>${opts}</select></label>`;
+  }
+
   settingsHTML() {
+    const S = this.settings;
     const a = this.accountInfo;
     const q = this.lastQuota?.allowanceInfo;
-    let html = `<h4>Account</h4>`;
-    if (a) {
-      html += `<div class="row"><span class="k">User</span> <span class="v">${esc(a.username || a.email || a.uuid || '(unknown)')}</span></div>`;
-      html += `<div class="row"><span class="k">UUID</span> <span class="v">${esc(a.uuid || '')}</span></div>`;
-    } else html += `<div class="row">Not available</div>`;
-    html += `<h4>Quota</h4>`;
-    if (q) {
-      html += `<div class="row">Remaining: <b>${num(q.remaining)}</b> ${esc(q.unit || '')}</div>`;
-      html += `<div class="row">Allowance: <b>${num(q.monthUsageAllowance)}</b> ${esc(q.unit || '')}</div>`;
-    } else html += `<div class="row">Not available</div>`;
-    html += `<h4>Usage this month (allowance is shared by all models)</h4>`;
-    const rows = this.usageByModel();
-    if (rows.length) rows.forEach(r => { html += `<div class="row"><span class="v">${esc(r.name)}</span> — <b>${r.cost.toFixed(3)}</b> cr · ${r.count} calls</div>`; });
-    else html += `<div class="row">Not available</div>`;
-    if (this.lastQuota) html += `<details><summary>Raw usage JSON</summary><pre>${esc(JSON.stringify(this.lastQuota, null, 2))}</pre></details>`;
-    html += `<h4>All models (${this.allModels.length})</h4>`;
-    this.allModels.forEach(m => {
-      const id = typeof m === 'string' ? m : (m.id || m.name);
-      const provider = m.provider || inferProvider(id);
-      const ctx = m.context || m.maxInputTokens || '?';
-      const maxTok = m.max_tokens || '?';
-      const prices = m.costs ? JSON.stringify(m.costs) : '—';
-      html += `<details>
+    let html = '';
+    SETTINGS_SCHEMA.forEach(g => {
+      html += `<h4>${esc(g.group)}</h4>`;
+      if (g.note) html += `<div class="opt-note">${esc(g.note)}</div>`;
+      g.items.forEach(it => { html += this.optionHTML(it); });
+      if (g.actions) {
+        html += `<div class="opt-actions"><button data-action="copy-report">Copy debug report</button><button data-action="download-report">Download report</button><button data-action="open-log">Open log</button><button data-action="clear-log">Clear log (${DebugLog.entries.length})</button></div>`;
+      }
+    });
+    html += `<div class="opt-actions"><button data-action="reset-settings">Reset settings to defaults</button></div>`;
+
+    if (S.showAccount) {
+      html += `<h4>Account</h4>`;
+      if (a) {
+        html += `<div class="row"><span class="k">User</span> <span class="v">${esc(a.username || a.email || a.uuid || '(unknown)')}</span></div>`;
+        html += `<div class="row"><span class="k">UUID</span> <span class="v">${esc(a.uuid || '')}</span></div>`;
+      } else html += `<div class="row">Not available</div>`;
+    }
+    if (S.showQuota) {
+      html += `<h4>Quota</h4>`;
+      if (q) {
+        html += `<div class="row">Remaining: <b>${num(q.remaining)}</b> ${esc(q.unit || '')}</div>`;
+        html += `<div class="row">Allowance: <b>${num(q.monthUsageAllowance)}</b> ${esc(q.unit || '')}</div>`;
+      } else html += `<div class="row">Not available</div>`;
+    }
+    if (S.showUsage) {
+      html += `<h4>Usage this month (allowance is shared by all models)</h4>`;
+      const rows = this.usageByModel();
+      if (rows.length) rows.forEach(r => { html += `<div class="row"><span class="v">${esc(r.name)}</span> — <b>${r.cost.toFixed(3)}</b> cr · ${r.count} calls</div>`; });
+      else html += `<div class="row">Not available</div>`;
+    }
+    if (S.showRawUsage && this.lastQuota) html += `<details><summary>Raw usage JSON</summary><pre>${esc(JSON.stringify(this.lastQuota, null, 2))}</pre></details>`;
+    if (S.showModels) {
+      html += `<h4>All models (${this.allModels.length})</h4>`;
+      this.allModels.forEach(m => {
+        const id = typeof m === 'string' ? m : (m.id || m.name);
+        const provider = m.provider || inferProvider(id);
+        const ctx = m.context || m.maxInputTokens || '?';
+        const maxTok = m.max_tokens || '?';
+        const prices = m.costs ? JSON.stringify(m.costs) : '—';
+        html += `<details>
         <summary>${esc(id)} · <span class="k">${esc(providerLabel(provider))}</span></summary>
         <div class="row"><span class="k">ID</span> <span class="v">${esc(id)}</span></div>
         <div class="row"><span class="k">Provider</span> <span class="v">${esc(provider)}</span></div>
@@ -1085,7 +1758,8 @@ class AIChatApp {
         <div class="row"><span class="k">Prices</span> <span class="v">${esc(prices)}</span></div>
         <details><summary>Raw model JSON</summary><pre>${esc(JSON.stringify(m, null, 2))}</pre></details>
       </details>`;
-    });
+      });
+    }
     return html;
   }
 
@@ -1094,31 +1768,135 @@ class AIChatApp {
     this.$('settingsModal').classList.add('open');
   }
 
-  showCodeInPanel(text) {
+  /* ---------- code + website preview ---------- */
+  showCodeInPanel(text, opts = {}) {
     const found = this.extractCode(text);
     if (!found) return;
     this.currentPanelState = found;
-    this.codeContent.textContent = found.code;
-    // Use full HTML documents as-is. (The old code rewrote every closing script tag,
-    // which broke all scripts in the preview, and nested a whole document inside body.)
-    if (found.lang === 'html' || /<!DOCTYPE html/i.test(found.code) || /<html[\s>]/i.test(found.code)) {
-      const isDoc = /<!DOCTYPE html|<html[\s>]/i.test(found.code);
-      this.previewFrame.srcdoc = isDoc ? found.code
-        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><base target="_blank"></head><body>${found.code}</body></html>`;
-    } else {
-      this.previewFrame.srcdoc = `<pre style="font-family:monospace;padding:16px;white-space:pre-wrap;">${esc(found.code)}</pre>`;
+    this.codeFileIdx = 0;
+    this.renderCodeTab();
+
+    let srcdoc;
+    if (found.bundle) srcdoc = found.bundle;           // the actual website: html + css + js combined
+    else srcdoc = `<pre style="font-family:monospace;padding:16px;white-space:pre-wrap;">${esc(found.code)}</pre>`;
+    this.previewSource = srcdoc;
+    const hook = found.bundle && DebugLog.on('logPreview');
+    this.previewFrame.srcdoc = hook ? this.injectPreviewHook(srcdoc) : srcdoc;
+    DebugLog.event('preview-built', { website: !!found.bundle, files: found.files.map(f => ({ name: f.name, lang: f.lang, chars: f.code.length })), bundledChars: found.bundle ? found.bundle.length : 0, previewHook: !!hook });
+    if (opts.open !== false) this.openTabs(['preview', 'code'], 'preview');
+  }
+
+  renderCodeTab() {
+    const s = this.currentPanelState; if (!s) return;
+    const items = s.files.slice();
+    if (s.bundle) items.push({ name: s.fileName + ' (bundled)', code: s.bundle });
+    const idx = Math.min(this.codeFileIdx || 0, items.length - 1);
+    const bar = this.$('fileBar');
+    bar.innerHTML = '';
+    bar.hidden = items.length <= 1;
+    items.forEach((f, i) => {
+      const b = document.createElement('button');
+      b.textContent = f.name;
+      if (i === idx) b.classList.add('active');
+      b.addEventListener('click', () => { this.codeFileIdx = i; this.renderCodeTab(); });
+      bar.appendChild(b);
+    });
+    this.codeShown = items[idx];
+    this.codeContent.textContent = this.codeShown.code;
+    this.updateSideTitle();
+  }
+
+  injectPreviewHook(html) {
+    const hook = '<scr' + 'ipt id="__dbg_capture">(function(){' +
+      'function s(l,a){try{var t=[].map.call(a,function(x){if(typeof x==="string")return x;try{return JSON.stringify(x)}catch(e){return String(x)}}).join(" ");parent.postMessage({__previewLog:1,level:l,text:t},"*")}catch(e){}}' +
+      '["log","info","warn","error","debug"].forEach(function(l){var o=console[l];console[l]=function(){s(l,arguments);return o.apply(console,arguments)}});' +
+      'window.addEventListener("error",function(e){var r=e.target&&e.target!==window;s(r?"resource-error":"uncaught",[r?("failed to load <"+e.target.tagName.toLowerCase()+"> "+(e.target.src||e.target.href||"")):(e.message+" @ line "+e.lineno+":"+e.colno)])},true);' +
+      'window.addEventListener("unhandledrejection",function(e){s("unhandledrejection",[(e.reason&&e.reason.stack)||String(e.reason)])});' +
+      '})();<\/script>';
+    const re = /<head(?:\s[^>]*)?>/i;
+    return re.test(html) ? html.replace(re, m => m + hook) : html;
+  }
+
+  /* Every fenced block in a reply, with a file name taken from a first-line comment when present. */
+  extractFiles(text) {
+    const re = /```([\w+-]*)\n([\s\S]*?)```/g;
+    const out = []; let m;
+    while ((m = re.exec(text)) !== null) {
+      const lang = (m[1] || 'text').toLowerCase();
+      const kind = ({ html: 'html', htm: 'html', xhtml: 'html', css: 'css', js: 'js', javascript: 'js', mjs: 'js' })[lang] || null;
+      const first = m[2].split('\n').find(l => l.trim()) || '';
+      const nm = first.match(/^\s*(?:<!-{2}|\/\*|\/\/|#)\s*([\w.\-\/]+\.[A-Za-z0-9]+)\s*(?:-{2}>|\*\/)?\s*$/);
+      out.push({ lang, kind, code: m[2], name: nm ? nm[1].split('/').pop() : null });
     }
-    this.openTabs(['preview','code'], 'preview');
+    const seen = {};
+    out.forEach((f, i) => {
+      if (!f.name) {
+        const ext = ({ html: 'html', css: 'css', js: 'js' })[f.kind] || ({ python: 'py', json: 'json' })[f.lang] || 'txt';
+        f.name = f.kind === 'html' ? 'index.html' : f.kind === 'css' ? 'style.css' : f.kind === 'js' ? 'script.js' : `file${i + 1}.${ext}`;
+      }
+      const n = (seen[f.name] = (seen[f.name] || 0) + 1);
+      if (n > 1) f.name = f.name.replace(/(\.[^.]+)?$/, `-${n}$1`);
+    });
+    return out;
+  }
+
+  /* Combine the html/css/js blocks of a reply into one self-contained page for the preview. */
+  bundleWebPage(files) {
+    const htmls = files.filter(f => f.kind === 'html');
+    if (!htmls.length) return null;
+    const page = [...htmls].reverse().find(f => /<!DOCTYPE html|<html[\s>]/i.test(f.code)) || htmls[htmls.length - 1];
+    const css = files.filter(f => f.kind === 'css'), js = files.filter(f => f.kind === 'js');
+    const used = new Set();
+    const base = p => String(p).split(/[?#]/)[0].split('/').pop().toLowerCase();
+    const external = u => /^(https?:)?\/\//i.test(u) || /^data:/i.test(u);
+    const find = (list, ref) => {
+      let f = list.find(x => x.name.toLowerCase() === base(ref) && !used.has(x));
+      if (!f && !external(ref)) f = list.find(x => !used.has(x));   // differently-named local file: use the next unused block
+      return f;
+    };
+    let html = page.code;
+    if (!/<html[\s>]/i.test(html)) {
+      html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>${html}</body></html>`;
+    }
+    html = html.replace(/<link\b[^>]*\brel=["']?stylesheet["']?[^>]*>/gi, tag => {
+      const h = /href=["']([^"']+)["']/i.exec(tag);
+      if (!h) return tag;
+      const f = find(css, h[1]);
+      if (!f) return tag;
+      used.add(f);
+      return `<style>\n${f.code}\n</style>`;
+    });
+    html = html.replace(/<script\b([^>]*?)\bsrc=["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (tag, a, src, b) => {
+      const f = find(js, src);
+      if (!f) return tag;
+      used.add(f);
+      const attrs = (a + b).replace(/\s+(defer|async)(=["'][^"']*["'])?/gi, '');
+      return `<script${attrs}>\n${f.code.replace(/<\/script/gi, '<\\/script')}\n<\/script>`;
+    });
+    // blocks the page never referenced still belong to it: inject them
+    const restCss = css.filter(f => !used.has(f)), restJs = js.filter(f => !used.has(f));
+    if (restCss.length) {
+      const s = restCss.map(f => `<style>\n${f.code}\n</style>`).join('\n');
+      html = /<\/head>/i.test(html) ? html.replace(/<\/head>/i, m => s + '\n' + m) : s + html;
+    }
+    if (restJs.length) {
+      const s = restJs.map(f => `<script>\n${f.code.replace(/<\/script/gi, '<\\/script')}\n<\/script>`).join('\n');
+      html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, m => s + '\n' + m) : html + s;
+    }
+    return { html, name: page.name };
   }
 
   extractCode(text) {
     if (!text) return null;
-    const re = /```([\w+-]*)\n([\s\S]*?)```/g;
-    let m, last = '', lang = 'text';
-    while ((m = re.exec(text)) !== null) { lang = m[1] || 'text'; last = m[2]; }
-    if (!last) return null;
-    const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[lang.toLowerCase()] || 'txt';
-    return { code: last, lang: lang.toLowerCase(), fileName: `code.${ext}` };
+    const files = this.extractFiles(text);
+    if (!files.length) return null;
+    const b = this.bundleWebPage(files);
+    if (b) {
+      const web = files.length > 1 ? `web page · ${files.length} files` : 'web page';
+      return { code: b.html, lang: 'html', fileName: b.name, label: web, files, bundle: b.html };
+    }
+    const last = files[files.length - 1];
+    return { code: last.code, lang: last.lang, fileName: last.name, label: last.lang, files, bundle: null };
   }
 
   addMessageToUI(text, sender, label) {
