@@ -999,7 +999,7 @@ class AIChatApp {
       const models = this.modelsByProvider[p] || [];
       models.forEach(m => {
         const o = document.createElement('option');
-        o.value = m.id; o.textContent = m.name || m.id;
+        o.value = m.id; o.textContent = (this.badModels()[m.id] ? '⚠ ' : '') + (m.name || m.id);
         this.modelSelect.appendChild(o);
       });
       if (models.length) this.modelSelect.value = models[0].id;
@@ -1128,7 +1128,7 @@ class AIChatApp {
 
   async copyCurrent() {
     let text = '';
-    if (this.activeTab === 'raw') text = this.rawText();
+    if (this.activeTab === 'raw') text = this.currentRawView();
     else if (this.activeTab === 'log') text = this.formatLog();
     else if (this.activeTab === 'settings') text = this.settingsViewer.innerText;
     else if (this.activeTab === 'preview') text = (this.currentPanelState && this.currentPanelState.code) || '';
@@ -1794,7 +1794,13 @@ class AIChatApp {
       const last = chat.messages[chat.messages.length - 1];
       if (last && last.role === 'user') chat.messages.pop();
       this.saveChats();
-      const text = err?.message || err?.error?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+      let text = err?.message || err?.error?.message || (typeof err === 'string' ? err : JSON.stringify(err));
+      const e2 = (err && typeof err === 'object' && Array.isArray(err.attempts)) ? err : (err?.error && Array.isArray(err.error.attempts) ? err.error : null);
+      if (e2) {
+        const lines = e2.attempts.map(a => `• ${a.provider || '?'} / ${a.model || '?'} — ${a.status || ''} ${a.error || ''}`.trim());
+        text = `${e2.message || e2.error || 'Request failed'}${e2.code ? ' (' + e2.code + ')' : ''}\n${lines.join('\n')}\n\nThis model can't be used right now on Puter's side — pick a different model.`;
+        this.markBadModel(model);
+      }
       if (stillViewing()) this.addMessageToUI(`Error: ${text}`, 'ai', 'error');
     } finally {
       this.streamingEl.classList.remove('active');
@@ -1858,12 +1864,56 @@ class AIChatApp {
     return chunks.map(c => { try { return JSON.stringify(c); } catch (_) { return String(c); } }).join('\n');
   }
 
+  badModels() { return safeJSON('puter-bad-models', {}); }
+  markBadModel(id) {
+    if (!id) return;
+    const b = this.badModels(); b[id] = Date.now();
+    try { localStorage.setItem('puter-bad-models', JSON.stringify(b)); } catch (_) {}
+    [...this.modelSelect.options].forEach(o => { if (o.value === id && !o.textContent.startsWith('⚠')) o.textContent = '⚠ ' + o.textContent; });
+  }
+
+  prettyText() {
+    const raw = this.currentRaw;
+    if (!raw) return '';
+    const chunks = raw.chunks || [];
+    if (!chunks.length) return '';
+    let reasoning = '', text = '', usage = null, extra = [];
+    chunks.forEach(c => {
+      if (!c) return;
+      if (c.type === 'usage' || c.usage) { usage = c; return; }
+      if (typeof c.text === 'string') text += c.text;
+      else if (typeof c.reasoning === 'string') reasoning += c.reasoning;
+      else if (typeof c.thinking === 'string') reasoning += c.thinking;
+      else extra.push(c);
+    });
+    const out = [];
+    out.push('// model\n' + (raw.model || 'unknown'));
+    if (usage) out.push('// usage\n' + JSON.stringify(usage, null, 2));
+    if (reasoning) out.push('// reasoning\n' + reasoning);
+    out.push('// text\n' + (text || raw.content || ''));
+    if (extra.length) out.push('// other chunks\n' + JSON.stringify(extra, null, 2));
+    return out.join('\n\n');
+  }
+
+  currentRawView() { return this.rawMode === 'pretty' ? this.prettyText() : this.rawText(); }
+
   renderResponseViewer() {
-    const text = this.rawText();
+    if (!this.rawMode) this.rawMode = 'raw';
     this.rawViewer.innerHTML = '';
+    const bar = document.createElement('div');
+    bar.className = 'segmented';
+    bar.style.marginBottom = '10px';
+    [['raw', 'Raw'], ['pretty', 'Pretty print']].forEach(([k, label]) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      if (this.rawMode === k) b.classList.add('active');
+      b.addEventListener('click', () => { this.rawMode = k; this.renderResponseViewer(); });
+      bar.appendChild(b);
+    });
+    this.rawViewer.appendChild(bar);
     const pre = document.createElement('pre');
     pre.className = 'raw-text';
-    pre.textContent = this.currentRaw ? (text || 'No raw chunks stored for this message (sent before chunks were saved).') : 'No response selected.';
+    pre.textContent = this.currentRaw ? (this.currentRawView() || 'No raw chunks stored for this message (sent before chunks were saved).') : 'No response selected.';
     this.rawViewer.appendChild(pre);
   }
 
