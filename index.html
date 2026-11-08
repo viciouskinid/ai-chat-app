@@ -11,6 +11,7 @@
   --bg:#faf9f5;--surface-0:#ffffff;--surface-1:#f5f4ee;--surface-2:#ecebe3;--surface-3:#e4e2d7;
   --text-primary:#1a1a1a;--text-secondary:#5c5a54;--text-muted:#9a978e;
   --border:#e5e3d9;--border-strong:#d6d3c6;--accent:#d97757;--accent-hover:#c96647;
+  --danger:#c0392b;--ok:#2e7d32;--warn:#e67e22;
   --user-bubble:#f0eee6;--code-bg:#f7f6f0;--code-border:#e0ddd2;
   --font-ui:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;
   --font-serif:Georgia,'Times New Roman',serif;
@@ -22,11 +23,15 @@
   --bg:#1a1915;--surface-0:#22211d;--surface-1:#2a2924;--surface-2:#35332c;--surface-3:#3f3d35;
   --text-primary:#f0eee6;--text-secondary:#b8b5a8;--text-muted:#7d7a6e;
   --border:#3a3830;--border-strong:#4a4840;--accent:#d97757;--accent-hover:#e88a6c;
+  --danger:#e05252;--ok:#66bb6a;--warn:#ffa726;
   --user-bubble:#35332c;--code-bg:#1e1d19;--code-border:#3a3830;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);min-height:100vh;overflow:hidden;display:flex;justify-content:center;align-items:center;padding:16px;transition:background .2s,color .2s}
-.app-layout{display:flex;width:100%;max-width:1500px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border);position:relative}
+.app-layout{display:flex;width:100%;max-width:1500px;height:92vh;background:var(--surface-0);border-radius:var(--radius-lg);box-shadow:0 4px 24px rgba(0,0,0,.06);overflow:hidden;border:1px solid var(--border);position:relative;flex-direction:column}
+.banner{display:none;padding:10px 16px;background:var(--danger);color:#fff;font-size:.82rem;text-align:center;font-weight:500}
+.banner.visible{display:block}
+.main-row{display:flex;flex:1;min-height:0;position:relative}
 /* Sidebar */
 .sidebar{width:var(--sidebar-w);background:var(--surface-1);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .15s ease}
 .sidebar.hidden{width:0;border-right:none}
@@ -56,13 +61,16 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .top-bar button.hidden{display:none}
 .usage-bar{display:flex;gap:14px;align-items:center;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap}
 .usage-bar b{color:var(--text-secondary);font-weight:600}
+.usage-bar .err{color:var(--danger);font-weight:600}
 .chat-messages{flex:1;padding:28px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;background:var(--bg);position:relative}
 .welcome{text-align:center;color:var(--text-muted);margin:auto;padding:40px}
 .welcome h1{font-family:var(--font-serif);font-weight:400;font-size:2.2rem;margin-bottom:8px;color:var(--text-primary)}
 .welcome p{font-size:1rem;color:var(--text-secondary)}
+.welcome .warn{color:var(--danger);font-weight:600}
 .message{max-width:82%;padding:14px 18px;border-radius:var(--radius);line-height:1.6;font-size:.95rem}
 .user-message{background:var(--user-bubble);align-self:flex-end;border-bottom-right-radius:4px}
 .ai-message{background:var(--surface-0);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px;width:82%}
+.ai-message.error{border-color:var(--danger)}
 .message-sender{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono)}
 .message-content{white-space:pre-wrap;word-break:break-word}
 .code-block{margin:10px 0;border:1px solid var(--code-border);border-radius:8px;overflow:hidden;background:var(--code-bg)}
@@ -126,7 +134,9 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .raw-viewer,.log-viewer{flex:1;padding:16px;overflow:auto;font-family:var(--font-mono);font-size:.72rem;line-height:1.6;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;background:var(--code-bg)}
 .raw-viewer h4,.log-viewer h4{font-family:var(--font-ui);font-size:.8rem;margin:14px 0 6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
 .raw-viewer .chunk,.log-viewer .entry{background:var(--surface-2);border-radius:4px;padding:6px 8px;margin:4px 0;border-left:2px solid var(--accent)}
-.log-viewer .entry.err{border-left-color:#e05252}
+.log-viewer .entry.ok{border-left-color:var(--ok)}
+.log-viewer .entry.warn{border-left-color:var(--warn)}
+.log-viewer .entry.err{border-left-color:var(--danger)}
 .log-viewer .entry .meta{display:flex;justify-content:space-between;font-size:.66rem;color:var(--text-muted);margin-bottom:4px}
 @media(max-width:900px){.sidebar{display:none}.side-panel{width:340px}.resizer{display:none}}
 @media(max-width:600px){body{padding:0}.app-layout{height:100vh;border-radius:0;border:none}.side-panel{display:none}.message{max-width:92%}.ai-message{width:92%}}
@@ -134,78 +144,81 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 </head>
 <body>
 <div class="app-layout">
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header"><div class="brand">Chat</div><button id="toggleThemeBtn" title="Toggle theme">🌓</button></div>
-    <div class="sidebar-rows">
-      <button class="side-row" id="newChatRow">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        <span>New</span><span class="shortcut">Ctrl+Shift+O</span>
-      </button>
-      <button class="side-row" id="searchRow">
-        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <span>Search</span><span class="shortcut">Ctrl+K</span>
-      </button>
-    </div>
-    <div class="history-section-label">Chats</div>
-    <div class="history-list" id="historyList"></div>
-  </aside>
-  <div class="resizer" id="leftResizer" title="Drag to resize sidebar"></div>
-
-  <div class="chat-container">
-    <div class="top-bar">
-      <button id="toggleSidebarBtn" title="Toggle History">☰</button>
-      <div class="usage-bar" id="usageBar">
-        <span id="usageText">Usage loading…</span>
-        <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.000000</b></span>
-        <button id="refreshUsageBtn" title="Refresh Puter quota">↻</button>
+  <div class="banner" id="banner"></div>
+  <div class="main-row">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header"><div class="brand">Chat</div><button id="toggleThemeBtn" title="Toggle theme">🌓</button></div>
+      <div class="sidebar-rows">
+        <button class="side-row" id="newChatRow">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          <span>New</span><span class="shortcut">Ctrl+Shift+O</span>
+        </button>
+        <button class="side-row" id="searchRow">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span>Search</span><span class="shortcut">Ctrl+K</span>
+        </button>
       </div>
-      <div style="display:flex;gap:4px">
-        <button id="toggleLogBtn" class="hidden" title="Show code panel">Code</button>
-        <button id="toggleNetLogBtn" class="hidden" title="Show network log">Log</button>
-      </div>
-    </div>
+      <div class="history-section-label">Chats</div>
+      <div class="history-list" id="historyList"></div>
+    </aside>
+    <div class="resizer" id="leftResizer" title="Drag to resize sidebar"></div>
 
-    <main class="chat-messages" id="chatMessages">
-      <div class="welcome" id="welcome"><h1>AI Chat</h1><p>How can I help you today?</p></div>
-    </main>
-    <button class="scroll-helper" id="scrollHelper" title="Scroll to bottom">↓</button>
-
-    <footer class="composer">
-      <div class="attachments" id="attachments"></div>
-      <div class="composer-box">
-        <textarea id="chatInput" placeholder="How can I help you today?" rows="1"></textarea>
-        <div class="composer-chin">
-          <div class="chin-left hidden" id="modelRow">
-            <select id="providerSelect" class="model-select"><option value="">Provider…</option></select>
-            <select id="modelSelect" class="model-select"><option value="">Model…</option></select>
-          </div>
-          <div class="chin-right"><button id="sendBtn" class="send-btn" disabled>Send</button></div>
+    <div class="chat-container">
+      <div class="top-bar">
+        <button id="toggleSidebarBtn" title="Toggle History">☰</button>
+        <div class="usage-bar" id="usageBar">
+          <span id="usageText">Usage loading…</span>
+          <span id="totalUsage" title="Total tokens used across all chats">Σ <b>0</b> tok · <b>$0.000000</b></span>
+          <button id="refreshUsageBtn" title="Refresh Puter quota">↻</button>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button id="toggleLogBtn" class="hidden" title="Show code panel">Code</button>
+          <button id="toggleNetLogBtn" class="hidden" title="Show network log">Log</button>
         </div>
       </div>
-      <div id="streamingIndicator" class="streaming">Thinking…</div>
-      <div class="build-status"><span id="build" class="status-build"></span></div>
-    </footer>
-  </div>
 
-  <div class="resizer" id="rightResizer" title="Drag to resize panel"></div>
-  <aside class="side-panel hidden" id="sidePanel">
-    <div class="side-panel-header">
-      <div class="segmented" role="tablist" id="tabStrip"></div>
-      <div class="side-title" id="sideTitle"></div>
-      <div class="side-actions" id="sideActions">
-        <button class="primary" id="copyBtn" title="Copy current tab contents">Copy</button>
-        <button id="downloadBtn" title="Download file">⤓</button>
-        <button id="diagnosticsBtn" title="Copy diagnostics (log + HTML)">Diag</button>
-        <button class="side-close" id="closeSidePanelBtn" title="Close">×</button>
+      <main class="chat-messages" id="chatMessages">
+        <div class="welcome" id="welcome"><h1>AI Chat</h1><p>How can I help you today?</p></div>
+      </main>
+      <button class="scroll-helper" id="scrollHelper" title="Scroll to bottom">↓</button>
+
+      <footer class="composer">
+        <div class="attachments" id="attachments"></div>
+        <div class="composer-box">
+          <textarea id="chatInput" placeholder="How can I help you today?" rows="1"></textarea>
+          <div class="composer-chin">
+            <div class="chin-left hidden" id="modelRow">
+              <select id="providerSelect" class="model-select"><option value="">Provider…</option></select>
+              <select id="modelSelect" class="model-select"><option value="">Model…</option></select>
+            </div>
+            <div class="chin-right"><button id="sendBtn" class="send-btn" disabled>Send</button></div>
+          </div>
+        </div>
+        <div id="streamingIndicator" class="streaming">Thinking…</div>
+        <div class="build-status"><span id="build" class="status-build"></span></div>
+      </footer>
+    </div>
+
+    <div class="resizer" id="rightResizer" title="Drag to resize panel"></div>
+    <aside class="side-panel hidden" id="sidePanel">
+      <div class="side-panel-header">
+        <div class="segmented" role="tablist" id="tabStrip"></div>
+        <div class="side-title" id="sideTitle"></div>
+        <div class="side-actions" id="sideActions">
+          <button class="primary" id="copyBtn" title="Copy current tab contents">Copy</button>
+          <button id="downloadBtn" title="Download file">⤓</button>
+          <button id="diagnosticsBtn" title="Copy diagnostics (log + HTML)">Diag</button>
+          <button class="side-close" id="closeSidePanelBtn" title="Close">×</button>
+        </div>
       </div>
-    </div>
-    <div class="side-body">
-      <div class="side-tab" id="tab-preview" hidden><iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe></div>
-      <div class="side-tab" id="tab-code" hidden><pre class="code-preview"><code id="codeContent"></code></pre></div>
-      <div class="side-tab" id="tab-raw" hidden><div class="raw-viewer" id="rawViewer"></div></div>
-      <div class="side-tab" id="tab-log" hidden><div class="log-viewer" id="logViewer"></div></div>
-    </div>
-  </aside>
+      <div class="side-body">
+        <div class="side-tab" id="tab-preview" hidden><iframe class="preview-frame" id="previewFrame" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer"></iframe></div>
+        <div class="side-tab" id="tab-code" hidden><pre class="code-preview"><code id="codeContent"></code></pre></div>
+        <div class="side-tab" id="tab-raw" hidden><div class="raw-viewer" id="rawViewer"></div></div>
+        <div class="side-tab" id="tab-log" hidden><div class="log-viewer" id="logViewer"></div></div>
+      </div>
+    </aside>
+  </div>
 </div>
 
 <script>
@@ -233,10 +246,10 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
   });
 })();
 
-/* ---------- NETWORK LOG ---------- */
+/* ---------- NETWORK LOG (fetch + xhr) ---------- */
 window.__netLog = [];
 (function(){
-  const orig = window.fetch;
+  const origFetch = window.fetch;
   window.fetch = async function(...args) {
     const start = performance.now();
     const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || String(args[0]);
@@ -246,7 +259,7 @@ window.__netLog = [];
     const entry = { ts: new Date().toISOString(), method, url, reqBody, status: null, resBody: '', ms: null, error: null };
     window.__netLog.push(entry);
     try {
-      const res = await orig.apply(this, args);
+      const res = await origFetch.apply(this, args);
       entry.status = res.status;
       entry.ms = Math.round(performance.now() - start);
       try {
@@ -260,6 +273,28 @@ window.__netLog = [];
       throw err;
     }
   };
+
+  const XO = window.XMLHttpRequest;
+  if (XO) {
+    const open = XO.prototype.open;
+    const send = XO.prototype.send;
+    XO.prototype.open = function(method, url) {
+      this.__log = { ts: new Date().toISOString(), method, url: String(url), reqBody: '', status: null, resBody: '', ms: null, error: null };
+      this.__start = performance.now();
+      window.__netLog.push(this.__log);
+      return open.apply(this, arguments);
+    };
+    XO.prototype.send = function(body) {
+      if (this.__log) try { this.__log.reqBody = body ? String(body).slice(0, 2000) : ''; } catch(_) {}
+      this.addEventListener('loadend', () => {
+        if (!this.__log) return;
+        this.__log.status = this.status;
+        this.__log.ms = Math.round(performance.now() - this.__start);
+        try { this.__log.resBody = (this.responseText || '').slice(0, 4000); } catch(_) {}
+      });
+      return send.apply(this, arguments);
+    };
+  }
 })();
 
 /* ---------- PROVIDER LABEL ---------- */
@@ -333,6 +368,7 @@ class AIChatApp {
     this.sideTitle = this.$('sideTitle');
     this.copyBtn = this.$('copyBtn');
     this.downloadBtn = this.$('downloadBtn');
+    this.banner = this.$('banner');
 
     this.isProcessing = false;
     this.currentChatId = null;
@@ -342,11 +378,14 @@ class AIChatApp {
     this.currentPanelState = null;
     this.currentRaw = null;
     this.activeTab = null;
-    this.availableTabs = []; // ['preview','code','raw','log']
+    this.availableTabs = [];
 
     this.init();
   }
   puterReady() { return typeof window.puter !== 'undefined'; }
+
+  showBanner(msg) { this.banner.textContent = msg; this.banner.classList.add('visible'); }
+  hideBanner() { this.banner.classList.remove('visible'); }
 
   async init() {
     this.bindEvents();
@@ -359,10 +398,11 @@ class AIChatApp {
     this.renderNetworkLog();
 
     if (!this.puterReady()) {
-      this.usageText.textContent = 'Puter unavailable — check CSP / network';
+      this.showBanner('Puter.js did not load — CSP or network issue. Open Log for details.');
+      this.usageText.innerHTML = '<span class="err">Puter unavailable</span>';
       this.providerSelect.innerHTML = '<option value="">Puter unavailable</option>';
       this.sendBtn.disabled = true;
-      console.error('Puter.js not loaded. Check CSP meta is first in <head>, and https://js.puter.com/v2/ returns 200.');
+      this.openTabs(['log'], 'log');
       return;
     }
     let signedIn = false;
@@ -426,6 +466,9 @@ class AIChatApp {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); this.newChat(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.focusSearch(); }
     });
+
+    // refresh quota countdown once a minute
+    setInterval(() => { if (this.usageText.dataset.quota) this.loadUsage(); }, 60000);
   }
 
   openTabs(tabs, active) {
@@ -570,17 +613,17 @@ class AIChatApp {
   showSignInPrompt() {
     const w = this.$('welcome');
     if (w) {
-      w.innerHTML = `<h1>Sign in</h1><p>Connect your Puter account to use AI models.</p>
+      w.innerHTML = `<h1>Sign in</h1><p class="warn">Not signed in — connect your Puter account to use AI models.</p>
         <button id="signInBtn" style="margin-top:16px;padding:10px 24px;border:none;border-radius:20px;background:var(--accent);color:#fff;font-size:.95rem;cursor:pointer;">Sign in with Puter</button>`;
       this.$('signInBtn').addEventListener('click', () => this.handleSignIn());
     }
-    this.usageText.textContent = 'Not signed in';
+    this.usageText.innerHTML = '<span class="err">Not signed in</span>';
     this.chatInput.disabled = true; this.sendBtn.disabled = true;
   }
   async handleSignIn() {
     if (!this.puterReady()) return;
     try { await puter.auth.signIn({ attempt_temp_user_creation: true }); await this.afterSignIn(); }
-    catch (e) { console.error(e); this.usageText.textContent = 'Sign in failed'; }
+    catch (e) { console.error(e); this.usageText.innerHTML = '<span class="err">Sign in failed</span>'; }
   }
   async afterSignIn() {
     this.$('welcome')?.remove();
@@ -589,9 +632,7 @@ class AIChatApp {
     try { await this.loadUsage(); } catch (e) { console.error(e); }
   }
 
-  /* Only list models that Puter can actually chat with.
-     Bare ids (qwen-*, deepseek-*) are frequently not routable; skip them
-     and rely on listModels() results that include a provider prefix. */
+  /* Only list models that Puter can actually chat with. */
   async loadModels() {
     if (!this.puterReady()) return;
     this.modelsByProvider = {};
@@ -600,28 +641,32 @@ class AIChatApp {
       (Array.isArray(models) ? models : []).forEach(m => {
         const id = m.id || m.name;
         if (!id) return;
-        // Prefer entries with an explicit provider or a provider/model form.
         const hasPrefix = /[:/]/.test(id);
         const declared = m.provider && String(m.provider).toLowerCase();
         let key;
         if (declared) key = declared;
         else if (hasPrefix) key = id.split(/[:/]/)[0].toLowerCase();
-        else return; // skip bare, unroutable ids
+        else return;
         key = inferProvider(key) || key;
         (this.modelsByProvider[key] ||= []).push({ id, name: m.name || id });
       });
     } catch (e) {
       console.warn('listModels failed', e);
-    }
-
-    // If nothing survived, hide the whole model row.
-    const providers = Object.keys(this.modelsByProvider).sort();
-    if (!providers.length) {
+      this.usageText.innerHTML = '<span class="err">Model list failed — see Log</span>';
       this.modelRow.classList.add('hidden');
+      this.openTabs(['log'], 'log');
       return;
     }
 
-    // Optional: probe the first model per provider to drop providers that 400.
+    const providers = Object.keys(this.modelsByProvider).sort();
+    if (!providers.length) {
+      this.usageText.innerHTML = '<span class="err">No usable models returned — see Log</span>';
+      this.modelRow.classList.add('hidden');
+      this.openTabs(['log'], 'log');
+      return;
+    }
+
+    // Probe first model per provider
     const working = {};
     for (const p of providers) {
       const m = this.modelsByProvider[p][0];
@@ -634,11 +679,14 @@ class AIChatApp {
     }
     const okProviders = Object.keys(working).sort();
     if (!okProviders.length) {
+      this.usageText.innerHTML = '<span class="err">All providers failed probe — see Log</span>';
       this.modelRow.classList.add('hidden');
+      this.openTabs(['log'], 'log');
       return;
     }
     this.modelsByProvider = working;
     this.modelRow.classList.remove('hidden');
+    this.hideBanner();
     this.providerSelect.innerHTML = '';
     okProviders.forEach(p => {
       const o = document.createElement('option');
@@ -663,16 +711,37 @@ class AIChatApp {
   }
 
   async loadUsage() {
-    if (!this.puterReady()) { this.usageText.textContent = 'Puter unavailable'; return null; }
+    if (!this.puterReady()) { this.usageText.innerHTML = '<span class="err">Puter unavailable</span>'; return null; }
     try {
       const usage = await puter.auth.getMonthlyUsage();
       const info = usage?.allowanceInfo;
-      if (!info) { this.usageText.textContent = 'Usage unavailable'; return null; }
+      if (!info) { this.usageText.innerHTML = '<span class="err">Usage unavailable</span>'; return null; }
       const t = info.monthUsageAllowance, r = info.remaining;
       const p = t > 0 ? ((t - r) / t * 100) : 0;
-      this.usageText.textContent = `Quota: ${p.toFixed(2)}% used · $${(r / 1e8).toFixed(6)} left`;
+      const reset = this.formatReset(info.resetAt || usage.resetAt || usage.nextResetAt);
+      this.usageText.dataset.quota = '1';
+      this.usageText.innerHTML =
+        `Quota: ${p.toFixed(2)}% used · $${(r / 1e8).toFixed(6)} left` +
+        (reset ? ` · <span title="Resets at ${reset}">resets in ${reset}</span>` : '');
       return { total: t, remaining: r, percentUsed: p };
-    } catch (e) { this.usageText.textContent = 'Usage error'; return null; }
+    } catch (e) {
+      this.usageText.innerHTML = '<span class="err">Usage error — see Log</span>';
+      return null;
+    }
+  }
+
+  formatReset(ts) {
+    if (!ts) return '';
+    const ms = typeof ts === 'number' ? ts : Date.parse(ts);
+    if (!ms || isNaN(ms)) return '';
+    const diff = ms - Date.now();
+    if (diff <= 0) return 'now';
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
   }
 
   updateTotalUsage() {
@@ -694,7 +763,13 @@ class AIChatApp {
   async handleSend() {
     if (this.isProcessing) return;
     if (!this.puterReady()) {
-      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai', 'system');
+      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai', 'error');
+      this.openTabs(['log'], 'log');
+      return;
+    }
+    if (!this.modelSelect.value) {
+      this.addMessageToUI('No model selected — the model list failed to load. Open Log for details.', 'ai', 'error');
+      this.openTabs(['log'], 'log');
       return;
     }
     let msg = this.chatInput.value.trim();
@@ -720,7 +795,7 @@ class AIChatApp {
 
     const before = await this.loadUsage();
 
-    const model = this.modelSelect.value || 'claude-sonnet-4-6';
+    const model = this.modelSelect.value;
     const raw = [];
     let usageInfo = null;
 
@@ -761,7 +836,7 @@ class AIChatApp {
       console.log('[Puter raw response]', raw);
     } catch (err) {
       console.error(err);
-      this.addMessageToUI(`Error: ${err.message || err}`, 'ai', 'system');
+      this.addMessageToUI(`Error: ${err.message || err}`, 'ai', 'error');
     } finally {
       this.streamingEl.classList.remove('active');
       this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
@@ -792,7 +867,7 @@ class AIChatApp {
     const toks = inTok + outTok;
     const cents = usage ? (usage.usd_cents || 0) : 0;
     const usd = cents / 100;
-    const micro = Math.round(cents * 10000); // microcents display
+    const micro = Math.round(cents * 10000);
     const delta = typeof deltaPct === 'number' ? deltaPct : null;
     const meta = document.createElement('div');
     meta.className = 'msg-meta';
@@ -830,13 +905,17 @@ class AIChatApp {
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     let html = `<h4>Network calls (${window.__netLog.length})</h4>`;
     window.__netLog.forEach((e, i) => {
-      const cls = e.error ? 'entry err' : 'entry';
+      let cls = 'entry';
+      if (e.error) cls += ' err';
+      else if (e.status >= 500) cls += ' err';
+      else if (e.status >= 400) cls += ' warn';
+      else if (e.status >= 200 && e.status < 300) cls += ' ok';
       html += `<div class="${cls}">
         <div class="meta"><span>#${i + 1} ${esc(e.method)} ${esc(e.status ?? '?')}</span><span>${esc(e.ms ?? '?')}ms</span></div>
         <div>${esc(e.url)}</div>
         ${e.reqBody ? `<div style="margin-top:4px;color:var(--text-muted)">→ ${esc(e.reqBody)}</div>` : ''}
         ${e.resBody ? `<div style="margin-top:4px;color:var(--text-muted)">← ${esc(e.resBody)}</div>` : ''}
-        ${e.error ? `<div style="color:#e05252;margin-top:4px">${esc(e.error)}</div>` : ''}
+        ${e.error ? `<div style="color:var(--danger);margin-top:4px">${esc(e.error)}</div>` : ''}
       </div>`;
     });
     this.logViewer.innerHTML = html;
@@ -870,8 +949,9 @@ class AIChatApp {
     this.$('welcome')?.remove();
     const div = document.createElement('div');
     div.className = `message ${sender}-message`;
+    if (label === 'error') div.classList.add('error');
     const s = document.createElement('div'); s.className = 'message-sender';
-    s.textContent = label || (sender === 'user' ? 'You' : 'AI');
+    s.textContent = label === 'error' ? 'Error' : (label || (sender === 'user' ? 'You' : 'AI'));
     const c = document.createElement('div'); c.className = 'message-content';
     if (sender === 'ai') c.innerHTML = this.renderMarkdown(text);
     else c.textContent = text;
@@ -992,7 +1072,10 @@ window.__copyCode = (btn) => {
 window.addEventListener('load', () => {
   if (typeof window.puter === 'undefined') {
     console.error('Puter.js failed to load. Verify CSP meta is first in <head>, and js.puter.com/v2/ is 200.');
-    document.getElementById('usageText').textContent = 'Puter unavailable — check console';
+    const b = document.getElementById('banner');
+    if (b) { b.textContent = 'Puter.js did not load — CSP or network issue. Open Log for details.'; b.classList.add('visible'); }
+    const u = document.getElementById('usageText');
+    if (u) u.innerHTML = '<span style="color:#c0392b;font-weight:600">Puter unavailable</span>';
     return;
   }
   new AIChatApp();
