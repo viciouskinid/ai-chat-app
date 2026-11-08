@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,15 +8,16 @@
 </head>
 <body>
   <div class="app-layout">
-    <!-- Left Sidebar: History -->
+    <!-- Left Sidebar: History (Claude-style narrow) -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <h2>History</h2>
-        <button id="newChatBtn" title="New Chat">+</button>
+        <div class="brand">Claude</div>
+        <button id="toggleThemeBtn" title="Toggle theme">🌓</button>
       </div>
-      <div class="history-list" id="historyList">
-        <!-- History items will be injected here -->
-      </div>
+      <button id="newChatBtn" class="new-chat-btn">
+        <span class="plus-icon">+</span> New chat
+      </button>
+      <div class="history-list" id="historyList"></div>
     </aside>
 
     <!-- Main Chat Area -->
@@ -34,32 +35,36 @@
       <!-- Chat Messages -->
       <main class="chat-messages" id="chatMessages">
         <div class="welcome" id="welcome">
-          <h2>Hello</h2>
-          <p>Pick a model below and start chatting.</p>
+          <h1>Claude</h1>
+          <p>How can I help you today?</p>
         </div>
       </main>
 
-      <!-- Composer -->
+      <!-- Composer (Claude style: input on top, model selector in chin) -->
       <footer class="composer">
-        <!-- Paste Preview Area -->
+        <!-- Paste Preview -->
         <div class="paste-preview" id="pastePreview">
           <div class="paste-header">
-            <span>Pasted Content</span>
+            <span>Pasted content</span>
             <button id="clearPasteBtn" title="Clear">×</button>
           </div>
           <div class="paste-content" id="pasteContent"></div>
         </div>
 
-        <div class="model-row">
-          <select id="modelSelect" class="model-select">
-            <option value="">Loading models…</option>
-          </select>
+        <div class="composer-box">
+          <textarea id="chatInput" placeholder="How can I help you today?" rows="1"></textarea>
+          <div class="composer-chin">
+            <div class="chin-left">
+              <select id="modelSelect" class="model-select">
+                <option value="">Loading models…</option>
+              </select>
+            </div>
+            <div class="chin-right">
+              <button id="sendBtn" type="submit" class="send-btn" disabled>Send</button>
+            </div>
+          </div>
         </div>
-        <form id="chatForm" class="input-row">
-          <textarea id="chatInput" placeholder="Message…" autocomplete="off" rows="1"></textarea>
-          <button id="sendBtn" type="submit">Send</button>
-        </form>
-        <div id="streamingIndicator" class="streaming">Thinking…</div>
+        <div id="streamingIndicator" class="streaming">Claude is thinking…</div>
         <div class="build-status">
           <span id="build" class="status-build" title="Build date and time (local)"></span>
         </div>
@@ -75,8 +80,6 @@
         </div>
         <button id="closeSidePanelBtn" title="Close">×</button>
       </div>
-      
-      <!-- Code View Tab -->
       <div class="tab-content" id="tab-code">
         <div class="code-header">
           <span id="codeLanguage">html</span>
@@ -84,8 +87,6 @@
         </div>
         <pre class="code-preview"><code id="codeContent"></code></pre>
       </div>
-
-      <!-- Network Log Tab -->
       <div class="tab-content" id="tab-log" style="display:none;">
         <div class="log-header">
           <span>Network Activity</span>
@@ -99,15 +100,5 @@
   <script src="https://js.puter.com/v2/"></script>
   <script src="./build.js"></script>
   <script src="./app.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const el = document.getElementById('build');
-      if (el && typeof BUILD_STAMP !== 'undefined') {
-        el.textContent = 'Build ' + BUILD_STAMP;
-      } else if (el) {
-        el.textContent = 'Build stamp missing';
-      }
-    });
-  </script>
 </body>
 </html>
