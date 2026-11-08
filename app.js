@@ -15,8 +15,27 @@ class AIChatApp {
 
   async init() {
     this.bindEvents();
-    await this.loadModels();
-    await this.loadUsage();
+
+    if (typeof puter === 'undefined') {
+      this.modelSelect.innerHTML = '<option value="">Puter.js failed to load</option>';
+      this.usageText.textContent = 'Puter.js unavailable — check network / origin';
+      return;
+    }
+
+    // Check auth state first
+    let signedIn = false;
+    try {
+      signedIn = await puter.auth.isSignedIn();
+    } catch (e) {
+      console.warn('isSignedIn failed', e);
+    }
+
+    if (!signedIn) {
+      this.showSignInPrompt();
+      return; // don't try loading models/usage until signed in
+    }
+
+    await this.afterSignIn();
   }
 
   bindEvents() {
@@ -25,6 +44,49 @@ class AIChatApp {
       this.handleSend();
     });
     this.refreshUsageBtn.addEventListener('click', () => this.loadUsage());
+  }
+
+  showSignInPrompt() {
+    const welcome = document.getElementById('welcome');
+    if (welcome) {
+      welcome.innerHTML = `
+        <h2>Sign in to chat</h2>
+        <p>Connect your Puter account to use AI models.</p>
+        <button id="signInBtn" style="margin-top:16px;padding:10px 24px;border:none;border-radius:10px;background:#1a1a1a;color:#fff;font-size:0.95rem;cursor:pointer;">Sign in with Puter</button>
+      `;
+      document.getElementById('signInBtn').addEventListener('click', () => this.handleSignIn());
+    }
+    this.usageText.textContent = 'Not signed in';
+    // Disable input until signed in
+    this.chatInput.disabled = true;
+    this.sendBtn.disabled = true;
+  }
+
+  async handleSignIn() {
+    try {
+      await puter.auth.signIn({ attempt_temp_user_creation: true });
+      await this.afterSignIn();
+    } catch (e) {
+      console.error('Sign in failed', e);
+      this.usageText.textContent = 'Sign in failed — check console';
+    }
+  }
+
+  async afterSignIn() {
+    document.getElementById('welcome')?.remove();
+    this.chatInput.disabled = false;
+    this.sendBtn.disabled = false;
+
+    try {
+      await this.loadModels();
+    } catch (e) {
+      console.error('loadModels threw', e);
+    }
+    try {
+      await this.loadUsage();
+    } catch (e) {
+      console.error('loadUsage threw', e);
+    }
   }
 
   async loadModels() {
