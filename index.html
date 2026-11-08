@@ -200,6 +200,24 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .acct-foot button{flex:1;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:6px;padding:5px 8px;font-size:.76rem;color:var(--text-primary);cursor:pointer}
 .acct-foot button:hover{background:var(--surface-3)}
 .acct-note{font-size:.68rem;color:var(--text-muted);padding:6px 4px 0;line-height:1.4}
+
+.search-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:60;align-items:flex-start;justify-content:center;padding-top:9vh}
+.search-backdrop.open{display:flex}
+.search-modal{width:min(680px,94vw);max-height:78vh;background:var(--surface-0);border:1px solid var(--border-strong);border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden}
+.search-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border)}
+.search-head svg{width:16px;height:16px;flex-shrink:0;stroke:var(--text-muted);fill:none;stroke-width:1.8;stroke-linecap:round}
+.search-head input{flex:1;background:transparent;border:none;outline:none;font-size:.95rem;color:var(--text-primary);font-family:var(--font-ui)}
+.search-head button{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;padding:2px 8px;border-radius:6px}
+.search-head button:hover{background:var(--surface-2);color:var(--text-primary)}
+.search-results{overflow-y:auto;padding:8px}
+.search-item{padding:9px 12px;border-radius:8px;cursor:pointer}
+.search-item.sel,.search-item:hover{background:var(--surface-2)}
+.search-item .st{display:flex;justify-content:space-between;gap:10px;font-size:.84rem;color:var(--text-primary);font-weight:500}
+.search-item .st span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.search-item .st .tm{font-size:.7rem;color:var(--text-muted);font-weight:400;flex-shrink:0;font-variant-numeric:tabular-nums}
+.search-item .sn{font-size:.78rem;color:var(--text-secondary);margin-top:3px;line-height:1.45;white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.search-item mark{background:rgba(217,119,87,.28);color:inherit;border-radius:2px;padding:0 1px}
+.search-empty{padding:28px;text-align:center;color:var(--text-muted);font-size:.85rem}
 </style>
 </head>
 <body>
@@ -286,6 +304,17 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
         <div class="side-tab" id="tab-settings" hidden><div class="settings-viewer" id="settingsViewer"></div></div>
       </div>
     </aside>
+  </div>
+</div>
+
+<div class="search-backdrop" id="searchOverlay">
+  <div class="search-modal" role="dialog" aria-label="Search chats">
+    <div class="search-head">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="searchInput" type="search" placeholder="Search chat content..." autocomplete="off" />
+      <button id="searchClose" title="Close (Esc)">×</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
   </div>
 </div>
 
@@ -989,10 +1018,61 @@ class AIChatApp {
 
   // Search was wired up but never implemented: filter the history list.
   focusSearch() {
-    this.sidebar.classList.remove('hidden');
-    const q = prompt('Search chats:');
-    if (q === null) return;
-    this.loadHistory(q.trim().toLowerCase());
+    const ov = this.$('searchOverlay'), inp = this.$('searchInput');
+    if (!this._searchBound) {
+      this._searchBound = true;
+      inp.addEventListener('input', () => this.renderSearch());
+      inp.addEventListener('keydown', e => {
+        const items = [...this.$('searchResults').querySelectorAll('.search-item')];
+        if (e.key === 'Escape') { this.closeSearch(); }
+        else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault(); if (!items.length) return;
+          this._searchSel = (this._searchSel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+          items.forEach((el, i) => el.classList.toggle('sel', i === this._searchSel));
+          items[this._searchSel].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter') { e.preventDefault(); items[this._searchSel]?.click(); }
+      });
+      this.$('searchClose').addEventListener('click', () => this.closeSearch());
+      ov.addEventListener('mousedown', e => { if (e.target === ov) this.closeSearch(); });
+    }
+    ov.classList.add('open');
+    inp.value = '';
+    this.renderSearch();
+    inp.focus();
+  }
+  closeSearch() { this.$('searchOverlay').classList.remove('open'); }
+
+  renderSearch() {
+    const q = this.$('searchInput').value.trim();
+    const ql = q.toLowerCase();
+    const box = this.$('searchResults');
+    const hits = [];
+    const fmt = id => { const d = new Date(Number(id)); if (isNaN(d)) return ''; const pad = n => String(n).padStart(2, '0'); return d.toDateString() === new Date().toDateString() ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+    const mark = (text, at, len) => {
+      const start = Math.max(0, at - 50), end = Math.min(text.length, at + len + 90);
+      return (start > 0 ? '…' : '') + esc(text.slice(start, at)) + '<mark>' + esc(text.slice(at, at + len)) + '</mark>' + esc(text.slice(at + len, end)) + (end < text.length ? '…' : '');
+    };
+    Object.entries(this.chats).sort((a, b) => Number(b[0]) - Number(a[0])).forEach(([id, chat]) => {
+      const title = chat.title || 'Untitled';
+      if (!ql) {
+        const m = chat.messages[0]; const t = m ? (m.display || m.content || '') : '';
+        hits.push({ id, title, time: fmt(id), html: esc(t.slice(0, 160)) });
+        return;
+      }
+      const ti = title.toLowerCase().indexOf(ql);
+      if (ti >= 0) hits.push({ id, title, time: fmt(id), html: mark(title, ti, ql.length) });
+      let n = 0;
+      for (const m of chat.messages) {
+        if (n >= 3) break;
+        const t = (m.role === 'user' ? (m.display || m.content) : m.content) || '';
+        const i = t.toLowerCase().indexOf(ql);
+        if (i >= 0) { hits.push({ id, title, time: fmt(id), html: mark(t, i, ql.length) }); n++; }
+      }
+    });
+    this._searchSel = 0;
+    if (!hits.length) { box.innerHTML = `<div class="search-empty">${ql ? 'No results' : 'No chats yet'}</div>`; return; }
+    box.innerHTML = hits.slice(0, 80).map((h, i) => `<div class="search-item ${i === 0 ? 'sel' : ''}" data-id="${esc(h.id)}"><div class="st"><span>${esc(h.title)}</span><span class="tm">${esc(h.time)}</span></div><div class="sn">${h.html}</div></div>`).join('');
+    box.querySelectorAll('.search-item').forEach(el => el.addEventListener('click', () => { this.loadChat(el.dataset.id); this.closeSearch(); }));
   }
 
   updateSendState() {
@@ -1694,7 +1774,7 @@ class AIChatApp {
           if (follow) this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
         }
       }
-      chat.messages.push({ role: 'ai', content: full, usage: usageInfo, model, reasoning: reasoningText, chunks: raw.slice(0, 3000) });
+      chat.messages.push({ role: 'ai', content: full, usage: usageInfo, model, reasoning: reasoningText, chunks: raw.slice(0, 20000) });
       const norm = normaliseUsage(usageInfo);
       if (norm) {
         chat.totalTokens = (chat.totalTokens || 0) + norm.inTok + norm.outTok;
@@ -1773,9 +1853,9 @@ class AIChatApp {
   rawText() {
     const raw = this.currentRaw;
     if (!raw) return '';
-    let text = '';
-    (raw.chunks || []).forEach(c => { if (c && typeof c.text === 'string') text += c.text; });
-    return text || raw.content || '';
+    const chunks = raw.chunks || [];
+    if (!chunks.length) return '';
+    return chunks.map(c => { try { return JSON.stringify(c); } catch (_) { return String(c); } }).join('\n');
   }
 
   renderResponseViewer() {
@@ -1783,7 +1863,7 @@ class AIChatApp {
     this.rawViewer.innerHTML = '';
     const pre = document.createElement('pre');
     pre.className = 'raw-text';
-    pre.textContent = this.currentRaw ? (text || '(empty response)') : 'No response selected.';
+    pre.textContent = this.currentRaw ? (text || 'No raw chunks stored for this message (sent before chunks were saved).') : 'No response selected.';
     this.rawViewer.appendChild(pre);
   }
 
