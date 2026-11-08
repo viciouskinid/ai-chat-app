@@ -334,4 +334,866 @@ const PROVIDER_LABELS = {
   zhipu:'Zhipu','z-ai':'Z.AI',kimi:'Kimi',microsoft:'Microsoft',
   perplexity:'Perplexity',together:'Together','together-ai':'Together',
   togetherai:'Together',openrouter:'OpenRouter',infron:'Infron',
-  glm:'Zhipu',baidu:'Baid
+  glm:'Zhipu',baidu:'Baidu',bytedance:'ByteDance',stepfun:'StepFun',
+  nvidia:'NVIDIA',amazon:'Amazon',ai21:'AI21',reka:'Reka',sakana:'Sakana'
+};
+function providerLabel(p) {
+  if (!p) return 'Other';
+  const k = String(p).toLowerCase();
+  return PROVIDER_LABELS[k] || (k.charAt(0).toUpperCase() + k.slice(1));
+}
+function inferProvider(id) {
+  const s = String(id || '').toLowerCase();
+  if (s.startsWith('claude') || s.startsWith('infron:anthropic') || s.startsWith('openrouter:anthropic')) return 'anthropic';
+  if (s.startsWith('gpt') || s.startsWith('o1') || s.startsWith('o3') || s.startsWith('o4') || s.includes('/openai/')) return 'openai';
+  if (s.startsWith('gemini') || s.startsWith('gemma') || s.includes('/google/')) return 'google';
+  if (s.startsWith('deepseek') || s.includes('/deepseek')) return 'deepseek';
+  if (s.startsWith('qwen') || s.includes('/qwen')) return 'alibaba';
+  if (s.startsWith('glm') || s.includes('/z-ai') || s.includes('/zhipu') || s.startsWith('zhipu')) return 'zhipu';
+  if (s.startsWith('kimi') || s.includes('/moonshot')) return 'moonshot';
+  if (s.startsWith('minimax') || s.includes('/minimax')) return 'minimax';
+  if (s.startsWith('llama') || s.startsWith('meta-llama') || s.includes('/meta')) return 'meta';
+  if (s.startsWith('mistral') || s.includes('/mistral')) return 'mistral';
+  if (s.startsWith('grok') || s.includes('/x-ai')) return 'xai';
+  if (s.startsWith('command') || s.includes('/cohere')) return 'cohere';
+  if (s.startsWith('nova') || s.includes('/amazon')) return 'amazon';
+  if (s.startsWith('sonar') || s.includes('/perplexity')) return 'perplexity';
+  if (s.includes('openrouter')) return 'openrouter';
+  if (s.includes('infron')) return 'infron';
+  if (s.includes('togetherai') || s.includes('together')) return 'togetherai';
+  if (s.includes('seed') || s.includes('bytedance')) return 'bytedance';
+  if (s.startsWith('step-') || s.includes('/stepfun')) return 'stepfun';
+  if (s.includes('nemotron') || s.includes('/nvidia')) return 'nvidia';
+  if (s.includes('muse')) return 'meta';
+  if (s.includes('fugu') || s.includes('sakana')) return 'sakana';
+  return 'other';
+}
+
+/* ---------- USAGE NORMALISER ----------
+ * Two shapes seen from Puter responses:
+ *   A) prompt_tokens / completion_tokens / cached_tokens / usd_cents / cost   (OpenAI-style)
+ *   B) input_tokens / output_tokens / cache_read_input_tokens / ephemeral_5m_input_tokens / thinking_tokens / usd_cents / cost   (Anthropic-style)
+ * Returns a stable {inTok, outTok, cachedTok, thinkingTok, usd, micro} object.
+ */
+function normaliseUsage(u) {
+  if (!u || typeof u !== 'object') return null;
+  const inTok = u.prompt_tokens ?? u.input_tokens ?? 0;
+  const outTok = u.completion_tokens ?? u.output_tokens ?? 0;
+  const cachedTok = u.cached_tokens ?? u.cache_read_input_tokens ?? 0;
+  const thinkingTok = u.thinking_tokens ?? 0;
+  // usd_cents is in dollars-cents (0.00441 = $0.0000441). cost is in microcents.
+  let usd = null;
+  if (typeof u.usd_cents === 'number') usd = u.usd_cents / 100;
+  else if (typeof u.cost === 'number') usd = u.cost / 1e6;
+  const micro = usd != null ? Math.round(usd * 1e6) : null;
+  return { inTok, outTok, cachedTok, thinkingTok, usd, micro, raw: u };
+}
+
+/* ---------- APP ---------- */
+class AIChatApp {
+  constructor() {
+    this.$ = id => document.getElementById(id);
+    this.chatMessages = this.$('chatMessages');
+    this.chatInput = this.$('chatInput');
+    this.sendBtn = this.$('sendBtn');
+    this.providerSelect = this.$('providerSelect');
+    this.modelSelect = this.$('modelSelect');
+    this.modelRow = this.$('modelRow');
+    this.streamingEl = this.$('streamingIndicator');
+    this.usageText = this.$('usageText');
+    this.totalUsage = this.$('totalUsage');
+    this.historyList = this.$('historyList');
+    this.sidebar = this.$('sidebar');
+    this.sidePanel = this.$('sidePanel');
+    this.codeContent = this.$('codeContent');
+    this.previewFrame = this.$('previewFrame');
+    this.rawViewer = this.$('rawViewer');
+    this.logViewer = this.$('logViewer');
+    this.settingsViewer = this.$('settingsViewer');
+    this.codeToggleBtn = this.$('toggleLogBtn');
+    this.netLogToggleBtn = this.$('toggleNetLogBtn');
+    this.attachmentsEl = this.$('attachments');
+    this.scrollHelper = this.$('scrollHelper');
+    this.tabStrip = this.$('tabStrip');
+    this.sideTitle = this.$('sideTitle');
+    this.copyBtn = this.$('copyBtn');
+    this.downloadBtn = this.$('downloadBtn');
+    this.banner = this.$('banner');
+    this.loadingBanner = this.$('loadingBanner');
+    this.loadingText = this.$('loadingText');
+
+    this.isProcessing = false;
+    this.currentChatId = null;
+    this.chats = JSON.parse(localStorage.getItem('puter-chats') || '{}');
+    this.attachments = [];
+    this.modelsByProvider = {};
+    this.allModels = [];
+    this.currentPanelState = null;
+    this.currentRaw = null;
+    this.activeTab = null;
+    this.availableTabs = [];
+    this.lastQuota = null;
+    this.accountInfo = null;
+
+    this.init();
+  }
+  puterReady() { return typeof window.puter !== 'undefined'; }
+  showBanner(msg) { this.banner.textContent = msg; this.banner.classList.add('visible'); }
+  hideBanner() { this.banner.classList.remove('visible'); }
+  setLoading(msg) {
+    if (msg) { this.loadingText.textContent = msg; this.loadingBanner.classList.add('visible'); }
+    else this.loadingBanner.classList.remove('visible');
+  }
+
+  async init() {
+    this.bindEvents();
+    this.loadHistory();
+    this.loadTheme();
+    this.setupTextarea();
+    this.setupResizers();
+    this.setupScrollHelper();
+    this.updateTotalUsage();
+    this.renderNetworkLog();
+
+    if (!this.puterReady()) {
+      this.showBanner('Puter.js did not load — CSP or network issue. Open Log for details.');
+      this.usageText.innerHTML = '<span class="err">Puter unavailable</span>';
+      this.providerSelect.innerHTML = '<option value="">Puter unavailable</option>';
+      this.sendBtn.disabled = true;
+      this.openTabs(['log'], 'log');
+      return;
+    }
+    this.setLoading('Connecting to Puter…');
+    let signedIn = false;
+    try { signedIn = await puter.auth.isSignedIn(); } catch (_) {}
+    if (!signedIn) { this.setLoading(null); this.showSignInPrompt(); return; }
+    await this.afterSignIn();
+  }
+
+  bindEvents() {
+    this.sendBtn.addEventListener('click', e => { e.preventDefault(); this.handleSend(); });
+    this.$('refreshUsageBtn').addEventListener('click', () => this.loadUsage());
+    this.$('toggleSidebarBtn').addEventListener('click', () => this.sidebar.classList.toggle('hidden'));
+    this.codeToggleBtn.addEventListener('click', () => this.openTabs(['preview','code'], 'preview'));
+    this.netLogToggleBtn.addEventListener('click', () => this.openTabs(['log'], 'log'));
+    this.$('closeSidePanelBtn').addEventListener('click', () => this.sidePanel.classList.add('hidden'));
+    this.$('settingsBtn').addEventListener('click', () => this.openSettings());
+    this.$('closeSettingsBtn').addEventListener('click', () => this.$('settingsModal').classList.remove('open'));
+    this.$('settingsModal').addEventListener('click', e => {
+      if (e.target === this.$('settingsModal')) this.$('settingsModal').classList.remove('open');
+    });
+
+    this.$('newChatRow').addEventListener('click', () => this.newChat());
+    this.$('searchRow').addEventListener('click', () => this.focusSearch());
+
+    this.copyBtn.addEventListener('click', () => this.copyCurrent());
+    this.downloadBtn.addEventListener('click', () => this.downloadCurrent());
+    this.$('diagnosticsBtn').addEventListener('click', () => this.copyDiagnostics());
+
+    this.chatInput.addEventListener('input', () => {
+      this.chatInput.style.height = 'auto';
+      this.chatInput.style.height = Math.min(this.chatInput.scrollHeight, 200) + 'px';
+      this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
+    });
+    this.chatInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSend(); }
+    });
+    this.chatInput.addEventListener('paste', e => {
+      const text = e.clipboardData.getData('text');
+      if (text.length > 500) { e.preventDefault(); this.addAttachment(text); }
+    });
+
+    this.$('toggleThemeBtn').addEventListener('click', () => {
+      const cur = document.documentElement.getAttribute('data-theme');
+      const next = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('puter-theme', next);
+    });
+
+    this.providerSelect.addEventListener('change', () => {
+      const p = this.providerSelect.value;
+      this.modelSelect.innerHTML = '';
+      if (!p) { this.modelSelect.innerHTML = '<option value="">Model…</option>'; return; }
+      const models = this.modelsByProvider[p] || [];
+      models.forEach(m => {
+        const o = document.createElement('option');
+        o.value = m.id; o.textContent = m.name || m.id;
+        this.modelSelect.appendChild(o);
+      });
+      if (models.length) this.modelSelect.value = models[0].id;
+      const saved = localStorage.getItem('puter-model');
+      if (saved && models.some(m => m.id === saved)) this.modelSelect.value = saved;
+    });
+    this.modelSelect.addEventListener('change', () => localStorage.setItem('puter-model', this.modelSelect.value));
+
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); this.newChat(); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); this.focusSearch(); }
+    });
+
+    setInterval(() => { this.loadUsage(); }, 60000);
+  }
+
+  openTabs(tabs, active) {
+    this.availableTabs = tabs;
+    this.activeTab = active;
+    this.renderTabs();
+    this.sidePanel.classList.remove('hidden');
+    this.$('tab-preview').hidden = active !== 'preview';
+    this.$('tab-code').hidden = active !== 'code';
+    this.$('tab-raw').hidden = active !== 'raw';
+    this.$('tab-log').hidden = active !== 'log';
+    this.$('tab-settings').hidden = active !== 'settings';
+    if (active === 'raw') this.renderResponseViewer();
+    if (active === 'log') this.renderNetworkLog();
+    if (active === 'settings') this.renderSettingsView();
+    this.updateCopyLabel();
+    this.updateSideTitle();
+  }
+
+  renderTabs() {
+    this.tabStrip.innerHTML = '';
+    this.availableTabs.forEach(t => {
+      const b = document.createElement('button');
+      b.dataset.tab = t;
+      const label = t === 'raw' ? 'Response' : (t === 'settings' ? 'Settings' : (t.charAt(0).toUpperCase() + t.slice(1)));
+      b.textContent = label;
+      if (t === this.activeTab) b.classList.add('active');
+      b.addEventListener('click', () => this.switchTab(t));
+      this.tabStrip.appendChild(b);
+    });
+  }
+
+  switchTab(t) {
+    this.activeTab = t;
+    this.renderTabs();
+    this.$('tab-preview').hidden = t !== 'preview';
+    this.$('tab-code').hidden = t !== 'code';
+    this.$('tab-raw').hidden = t !== 'raw';
+    this.$('tab-log').hidden = t !== 'log';
+    this.$('tab-settings').hidden = t !== 'settings';
+    if (t === 'raw') this.renderResponseViewer();
+    if (t === 'log') this.renderNetworkLog();
+    if (t === 'settings') this.renderSettingsView();
+    this.updateCopyLabel();
+    this.updateSideTitle();
+  }
+
+  updateSideTitle() {
+    if (this.activeTab === 'raw' && this.currentRaw) {
+      this.sideTitle.innerHTML = `<b>Response</b><span class="sep">·</span>${this.currentRaw.model || ''}`;
+    } else if (this.activeTab === 'log') {
+      this.sideTitle.innerHTML = `<b>Network log</b>`;
+    } else if (this.activeTab === 'settings') {
+      this.sideTitle.innerHTML = `<b>Settings</b>`;
+    } else if (this.currentPanelState) {
+      this.sideTitle.innerHTML = `<b>${this.currentPanelState.fileName}</b><span class="sep">·</span>${this.currentPanelState.lang}`;
+    } else {
+      this.sideTitle.innerHTML = '';
+    }
+  }
+
+  updateCopyLabel() {
+    const map = { preview: 'Copy', code: 'Copy', raw: 'Copy JSON', log: 'Copy Log', settings: 'Copy' };
+    this.copyBtn.textContent = map[this.activeTab] || 'Copy';
+  }
+
+  copyCurrent() {
+    let text = '';
+    if (this.activeTab === 'raw') text = JSON.stringify(this.currentRaw, null, 2);
+    else if (this.activeTab === 'log') text = this.formatNetLog();
+    else if (this.activeTab === 'settings') text = this.settingsViewer.innerText;
+    else text = this.codeContent.textContent;
+    navigator.clipboard.writeText(text);
+    this.copyBtn.textContent = 'Copied!';
+    setTimeout(() => this.updateCopyLabel(), 1500);
+  }
+
+  downloadCurrent() {
+    const s = this.currentPanelState; if (!s) return;
+    const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[s.lang] || 'txt';
+    const blob = new Blob([s.code], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${s.fileName}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  formatNetLog() {
+    return window.__netLog.map(e => {
+      let s = `[${e.ts}] ${e.method} ${e.url}\n`;
+      s += `  → status: ${e.status ?? '?'} · ${e.ms ?? '?'}ms\n`;
+      if (e.reqBody) s += `  → request: ${e.reqBody}\n`;
+      if (e.resBody) s += `  → response: ${e.resBody}\n`;
+      if (e.error) s += `  → error: ${e.error}\n`;
+      return s;
+    }).join('\n');
+  }
+
+  async copyDiagnostics() {
+    const diag = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      url: location.href,
+      theme: document.documentElement.getAttribute('data-theme'),
+      puterLoaded: typeof window.puter !== 'undefined',
+      pageHTML: document.documentElement.outerHTML,
+      networkLog: window.__netLog,
+      chats: this.chats,
+      models: this.modelsByProvider,
+      account: this.accountInfo,
+      quota: this.lastQuota
+    };
+    await navigator.clipboard.writeText(JSON.stringify(diag, null, 2));
+    this.$('diagnosticsBtn').textContent = 'Copied!';
+    setTimeout(() => this.$('diagnosticsBtn').textContent = 'Diag', 1500);
+  }
+
+  loadTheme() { const s = localStorage.getItem('puter-theme'); if (s) document.documentElement.setAttribute('data-theme', s); }
+  setupTextarea() { this.chatInput.style.height = 'auto'; }
+
+  addAttachment(text) {
+    const id = Date.now() + Math.random();
+    const kb = (text.length / 1024).toFixed(2);
+    this.attachments.push({ id, name: `pasted-${this.attachments.length + 1}.txt`, size: `${kb} KB`, text });
+    this.renderAttachments();
+    this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
+  }
+  removeAttachment(id) {
+    this.attachments = this.attachments.filter(a => a.id !== id);
+    this.renderAttachments();
+    this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
+  }
+  clearAttachments() {
+    this.attachments = [];
+    this.renderAttachments();
+    this.sendBtn.disabled = true;
+  }
+  renderAttachments() {
+    this.attachmentsEl.innerHTML = '';
+    if (!this.attachments.length) { this.attachmentsEl.classList.remove('active'); return; }
+    this.attachmentsEl.classList.add('active');
+    this.attachments.forEach(a => {
+      const tile = document.createElement('div');
+      tile.className = 'attachment-tile';
+      tile.innerHTML = `<div class="icon">TXT</div><div class="info"><div class="name">${a.name}</div><div class="size">${a.size}</div></div><button class="remove" title="Remove">×</button>`;
+      tile.querySelector('.remove').addEventListener('click', () => this.removeAttachment(a.id));
+      this.attachmentsEl.appendChild(tile);
+    });
+  }
+
+  showSignInPrompt() {
+    const w = this.$('welcome');
+    if (w) {
+      w.innerHTML = `<h1>Sign in</h1><p style="color:#c0392b;font-weight:600">Not signed in — connect your Puter account to use AI models.</p>
+        <button id="signInBtn" style="margin-top:16px;padding:10px 24px;border:none;border-radius:20px;background:var(--accent);color:#fff;font-size:.95rem;cursor:pointer;">Sign in with Puter</button>`;
+      this.$('signInBtn').addEventListener('click', () => this.handleSignIn());
+    }
+    this.usageText.innerHTML = '<span class="err">Not signed in</span>';
+    this.chatInput.disabled = true; this.sendBtn.disabled = true;
+  }
+  async handleSignIn() {
+    if (!this.puterReady()) return;
+    try { await puter.auth.signIn({ attempt_temp_user_creation: true }); await this.afterSignIn(); }
+    catch (e) { console.error(e); this.usageText.innerHTML = '<span class="err">Sign in failed</span>'; }
+  }
+  async afterSignIn() {
+    this.$('welcome')?.remove();
+    this.chatInput.disabled = false; this.sendBtn.disabled = true;
+    try {
+      this.setLoading('Loading account…');
+      try { this.accountInfo = await puter.auth.getUser(); } catch (_) {}
+      this.setLoading('Listing models…');
+      await this.loadModels();
+      this.setLoading('Checking quota…');
+      await this.loadUsage();
+    } catch (e) { console.error(e); }
+    finally { this.setLoading(null); }
+  }
+
+  async loadModels() {
+    if (!this.puterReady()) return;
+    this.modelsByProvider = {};
+    this.allModels = [];
+    try {
+      const models = await puter.ai.listModels();
+      this.allModels = Array.isArray(models) ? models : [];
+      this.allModels.forEach(m => {
+        const id = m.id || m.name;
+        if (!id) return;
+        const declared = m.provider && String(m.provider).toLowerCase();
+        let key = declared || inferProvider(id);
+        (this.modelsByProvider[key] ||= []).push({ id, name: m.name || id, raw: m });
+      });
+    } catch (e) {
+      console.warn('listModels failed', e);
+      this.usageText.innerHTML = '<span class="err">Model list failed — see Log</span>';
+      this.modelRow.classList.add('hidden');
+      this.openTabs(['log'], 'log');
+      return;
+    }
+    const providers = Object.keys(this.modelsByProvider).sort();
+    if (!providers.length) {
+      this.usageText.innerHTML = '<span class="err">No models returned — see Log</span>';
+      this.modelRow.classList.add('hidden');
+      this.openTabs(['log'], 'log');
+      return;
+    }
+    this.modelRow.classList.remove('hidden');
+    this.hideBanner();
+    this.providerSelect.innerHTML = '';
+    providers.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p; o.textContent = providerLabel(p);
+      this.providerSelect.appendChild(o);
+    });
+    const saved = localStorage.getItem('puter-model');
+    let restored = false;
+    if (saved) {
+      for (const p of providers) {
+        if (this.modelsByProvider[p].some(m => m.id === saved)) {
+          this.providerSelect.value = p;
+          this.providerSelect.dispatchEvent(new Event('change'));
+          this.modelSelect.value = saved; restored = true; break;
+        }
+      }
+    }
+    if (!restored) {
+      this.providerSelect.value = providers[0];
+      this.providerSelect.dispatchEvent(new Event('change'));
+    }
+  }
+
+  async loadUsage() {
+    if (!this.puterReady()) { this.usageText.innerHTML = '<span class="err">Puter unavailable</span>'; return null; }
+    try {
+      const usage = await puter.auth.getMonthlyUsage();
+      this.lastQuota = usage;
+      const info = usage?.allowanceInfo;
+      if (!info) { this.usageText.innerHTML = '<span class="err">Usage unavailable</span>'; return null; }
+      const remaining = info.remaining;
+      const allowance = info.monthUsageAllowance;
+      const pct = allowance > 0 ? ((allowance - remaining) / allowance * 100) : 0;
+      const unit = info.unit || 'credits';
+      const reset = this.formatReset(info.resetAt || usage.resetAt || usage.nextResetAt);
+      this.usageText.innerHTML =
+        `${unit}: <b>${(remaining).toFixed(2)}</b> / ${allowance.toFixed(2)} (${pct.toFixed(2)}% used)` +
+        (reset ? ` · resets in ${reset}` : '');
+      return { remaining, allowance, pct };
+    } catch (e) {
+      this.usageText.innerHTML = '<span class="err">Usage error — see Log</span>';
+      return null;
+    }
+  }
+
+  formatReset(ts) {
+    if (!ts) return '';
+    const ms = typeof ts === 'number' ? ts : Date.parse(ts);
+    if (!ms || isNaN(ms)) return '';
+    const diff = ms - Date.now();
+    if (diff <= 0) return 'now';
+    const d = Math.floor(diff / 86400000);
+    const h = Math.floor((diff % 86400000) / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  updateTotalUsage() {
+    let tok = 0, cost = 0;
+    for (const chat of Object.values(this.chats)) {
+      tok += chat.totalTokens || 0;
+      cost += chat.totalCost || 0;
+    }
+    this.totalUsage.innerHTML = `Σ <b>${tok.toLocaleString()}</b> tok · <b>$${cost.toFixed(6)}</b>`;
+  }
+
+  refreshCodeButton() {
+    const chat = this.chats[this.currentChatId];
+    const hasCode = !!(chat && chat.messages.some(m => m.role === 'ai' && this.extractCode(m.content)));
+    this.codeToggleBtn.classList.toggle('hidden', !hasCode);
+    this.netLogToggleBtn.classList.toggle('hidden', window.__netLog.length === 0);
+  }
+
+  async handleSend() {
+    if (this.isProcessing) return;
+    if (!this.puterReady()) {
+      this.addMessageToUI('Puter.js is not available. Check the CSP meta tag and the Network tab.', 'ai', 'error');
+      this.openTabs(['log'], 'log');
+      return;
+    }
+    if (!this.modelSelect.value) {
+      this.addMessageToUI('No model selected — the model list failed to load. Open Log for details.', 'ai', 'error');
+      this.openTabs(['log'], 'log');
+      return;
+    }
+    let msg = this.chatInput.value.trim();
+    let prefix = '';
+    if (this.attachments.length) {
+      prefix = this.attachments.map(a => `--- ${a.name} (${a.size}) ---\n${a.text}`).join('\n\n') + '\n\n';
+      this.clearAttachments();
+    }
+    const fullMsg = prefix + msg;
+    if (!fullMsg.trim()) return;
+
+    this.chatInput.value = ''; this.chatInput.style.height = 'auto';
+    this.sendBtn.disabled = true; this.isProcessing = true;
+    this.streamingEl.classList.add('active');
+
+    if (!this.currentChatId) {
+      this.currentChatId = Date.now().toString();
+      this.chats[this.currentChatId] = { title: (msg || prefix).substring(0, 30), messages: [], totalTokens: 0, totalCost: 0 };
+    }
+    this.addMessageToUI(fullMsg, 'user', 'You');
+    this.chats[this.currentChatId].messages.push({ role: 'user', content: fullMsg });
+    this.saveChats();
+
+    const model = this.modelSelect.value;
+    const raw = [];
+    let usageInfo = null;
+    let reasoningText = '';
+
+    try {
+      const response = await puter.ai.chat(fullMsg, { model, stream: true });
+      const aiEl = this.addMessageToUI('', 'ai', model);
+      const contentEl = aiEl.querySelector('.message-content');
+      let full = '';
+      let reasoningEl = null;
+      for await (const part of response) {
+        raw.push(part);
+        if (part?.usage) usageInfo = part.usage;
+        if (part?.thinking || part?.reasoning) {
+          reasoningText += (part.thinking || part.reasoning);
+          if (!reasoningEl) reasoningEl = this.insertReasoningBlock(aiEl, reasoningText);
+          else reasoningEl.querySelector('pre').textContent = reasoningText;
+        }
+        if (part?.text) {
+          full += part.text;
+          contentEl.innerHTML = this.renderMarkdown(full);
+          this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+        }
+      }
+      this.chats[this.currentChatId].messages.push({ role: 'ai', content: full, usage: usageInfo, model, reasoning: reasoningText });
+      const norm = normaliseUsage(usageInfo);
+      if (norm) {
+        const toks = norm.inTok + norm.outTok;
+        this.chats[this.currentChatId].totalTokens = (this.chats[this.currentChatId].totalTokens || 0) + toks;
+        this.chats[this.currentChatId].totalCost = (this.chats[this.currentChatId].totalCost || 0) + (norm.usd || 0);
+      }
+      this.saveChats();
+      this.updateTotalUsage();
+      this.updateMsgMeta(aiEl, usageInfo, raw, model);
+      this.showCodeInPanel(full);
+      this.refreshCodeButton();
+      this.renderNetworkLog();
+      await this.loadUsage();
+      console.log('[Puter raw response]', raw);
+    } catch (err) {
+      console.error(err);
+      this.addMessageToUI(`Error: ${err.message || err}`, 'ai', 'error');
+    } finally {
+      this.streamingEl.classList.remove('active');
+      this.sendBtn.disabled = this.chatInput.value.trim() === '' && this.attachments.length === 0;
+      this.isProcessing = false; this.chatInput.focus();
+      this.renderNetworkLog();
+    }
+  }
+
+  insertReasoningBlock(aiEl, text) {
+    const wrap = document.createElement('details');
+    wrap.className = 'reasoning';
+    wrap.innerHTML = `<summary>Reasoning</summary><pre></pre>`;
+    wrap.querySelector('pre').textContent = text;
+    aiEl.insertBefore(wrap, aiEl.querySelector('.message-content'));
+    return wrap;
+  }
+
+  renderMarkdown(text) {
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const re = /```(\w*)\n([\s\S]*?)```/g;
+    let out = '', last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      out += esc(text.slice(last, m.index));
+      const lang = m[1] || 'text';
+      const code = m[2];
+      out += `<div class="code-block"><div class="code-block-header"><span>${lang}</span><button onclick="window.__copyCode(this)">Copy</button></div><pre><code>${esc(code)}</code></pre></div>`;
+      last = m.index + m[0].length;
+    }
+    out += esc(text.slice(last));
+    return out;
+  }
+
+  updateMsgMeta(aiEl, usage, raw, model) {
+    if (!aiEl) return;
+    const n = normaliseUsage(usage);
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    let usageText = 'usage not reported';
+    if (n) {
+      const toks = n.inTok + n.outTok;
+      const usd = n.usd != null ? `$${n.usd.toFixed(6)}` : '—';
+      const micro = n.micro != null ? ` (${n.micro} µ¢)` : '';
+      usageText = `${n.inTok}↑ / ${n.outTok}↓ · ${toks} tok · ${usd}${micro}`;
+      if (n.thinkingTok) usageText += ` · ${n.thinkingTok} think`;
+      if (n.cachedTok) usageText += ` · ${n.cachedTok} cached`;
+    }
+    meta.innerHTML = `<span>${usageText}</span><button type="button" class="view-raw-btn">View response</button>`;
+    meta.querySelector('.view-raw-btn').addEventListener('click', () => {
+      this.currentRaw = { model, usage, chunks: raw };
+      this.openTabs(['raw'], 'raw');
+    });
+    aiEl.appendChild(meta);
+  }
+
+  /* Response tab: shows the SAME data the message shows, plus the raw JSON underneath */
+  renderResponseViewer() {
+    const raw = this.currentRaw;
+    if (!raw) { this.rawViewer.textContent = 'No response selected.'; return; }
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const n = normaliseUsage(raw.usage);
+    let html = `<h4>Model</h4><div class="chunk">${esc(raw.model || 'unknown')}</div>`;
+    if (n) {
+      html += `<h4>Usage</h4><div class="chunk">${esc(JSON.stringify(n.raw, null, 2))}</div>`;
+      const usd = n.usd != null ? `$${n.usd.toFixed(6)}` : '—';
+      html += `<h4>Normalised</h4><div class="chunk">${n.inTok}↑ / ${n.outTok}↓ · ${n.inTok+n.outTok} tok · ${usd}${n.micro!=null?` (${n.micro} µ¢)`:''}${n.cachedTok?` · ${n.cachedTok} cached`:''}${n.thinkingTok?` · ${n.thinkingTok} thinking`:''}</div>`;
+    } else {
+      html += `<h4>Usage</h4><div class="chunk">not reported</div>`;
+    }
+    html += `<h4>Streamed chunks (${raw.chunks?.length || 0})</h4>`;
+    (raw.chunks || []).forEach((c, i) => {
+      html += `<div class="chunk"><b>#${i + 1}</b> ${esc(JSON.stringify(c))}</div>`;
+    });
+    html += `<h4>Full JSON</h4><div class="chunk">${esc(JSON.stringify(raw, null, 2))}</div>`;
+    this.rawViewer.innerHTML = html;
+  }
+
+  renderNetworkLog() {
+    if (!this.logViewer) return;
+    this.netLogToggleBtn.classList.toggle('hidden', window.__netLog.length === 0);
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let html = `<h4>Network calls (${window.__netLog.length})</h4>`;
+    window.__netLog.forEach((e, i) => {
+      let cls = 'entry';
+      if (e.error) cls += ' err';
+      else if (e.status >= 500) cls += ' err';
+      else if (e.status >= 400) cls += ' warn';
+      else if (e.status >= 200 && e.status < 300) cls += ' ok';
+      html += `<div class="${cls}">
+        <div class="meta"><span>#${i + 1} ${esc(e.method)} ${esc(e.status ?? '?')}</span><span>${esc(e.ms ?? '?')}ms</span></div>
+        <div>${esc(e.url)}</div>
+        ${e.reqBody ? `<div style="margin-top:4px;color:var(--text-muted)">→ ${esc(e.reqBody)}</div>` : ''}
+        ${e.resBody ? `<div style="margin-top:4px;color:var(--text-muted)">← ${esc(e.resBody)}</div>` : ''}
+        ${e.error ? `<div style="color:#c0392b;margin-top:4px">${esc(e.error)}</div>` : ''}
+      </div>`;
+    });
+    this.logViewer.innerHTML = html;
+  }
+
+  renderSettingsView() {
+    if (!this.settingsViewer) return;
+    this.settingsViewer.innerHTML = this.settingsHTML();
+  }
+
+  settingsHTML() {
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const a = this.accountInfo;
+    const q = this.lastQuota?.allowanceInfo;
+    let html = '';
+    html += `<h4>Account</h4>`;
+    if (a) {
+      html += `<div class="row"><span class="k">User</span> <span class="v">${esc(a.username || a.email || a.uuid || '(unknown)')}</span></div>`;
+      html += `<div class="row"><span class="k">UUID</span> <span class="v">${esc(a.uuid || '')}</span></div>`;
+    } else {
+      html += `<div class="row">Not available</div>`;
+    }
+    html += `<h4>Quota</h4>`;
+    if (q) {
+      html += `<div class="row">Remaining: <b>${q.remaining?.toFixed(2)}</b> ${esc(q.unit || '')}</div>`;
+      html += `<div class="row">Allowance: <b>${q.monthUsageAllowance?.toFixed(2)}</b> ${esc(q.unit || '')}</div>`;
+    } else {
+      html += `<div class="row">Not available</div>`;
+    }
+    html += `<h4>All models (${this.allModels.length})</h4>`;
+    this.allModels.forEach(m => {
+      const id = m.id || m.name;
+      const provider = m.provider || inferProvider(id);
+      const ctx = m.context || m.maxInputTokens || '?';
+      const maxTok = m.max_tokens || '?';
+      const prices = m.costs ? JSON.stringify(m.costs) : '—';
+      html += `<details>
+        <summary>${esc(id)} · <span class="k">${esc(providerLabel(provider))}</span></summary>
+        <div class="row"><span class="k">ID</span> <span class="v">${esc(id)}</span></div>
+        <div class="row"><span class="k">Provider</span> <span class="v">${esc(provider)}</span></div>
+        <div class="row"><span class="k">Context</span> <span class="v">${esc(ctx)}</span></div>
+        <div class="row"><span class="k">Max output</span> <span class="v">${esc(maxTok)}</span></div>
+        <div class="row"><span class="k">Prices</span> <span class="v">${esc(prices)}</span></div>
+      </details>`;
+    });
+    return html;
+  }
+
+  openSettings() {
+    this.$('settingsModalBody').innerHTML = this.settingsHTML();
+    this.$('settingsModal').classList.add('open');
+  }
+
+  showCodeInPanel(text) {
+    const found = this.extractCode(text);
+    if (!found) return;
+    this.currentPanelState = found;
+    this.codeContent.textContent = found.code;
+    if (found.lang === 'html' || /<!DOCTYPE html/i.test(found.code) || /<html[\s>]/i.test(found.code)) {
+      const safe = found.code.replace(/<\/script>/gi, '<\\/script>');
+      this.previewFrame.srcdoc = `<!DOCTYPE html><html><head><base target="_blank"></head><body>${safe}</body></html>`;
+    } else {
+      this.previewFrame.srcdoc = `<pre style="font-family:monospace;padding:16px;white-space:pre-wrap;">${found.code.replace(/</g,'&lt;')}</pre>`;
+    }
+    this.openTabs(['preview','code'], 'preview');
+  }
+
+  extractCode(text) {
+    if (!text) return null;
+    const re = /```(\w*)\n([\s\S]*?)```/g;
+    let m, last = '', lang = 'text';
+    while ((m = re.exec(text)) !== null) { lang = m[1] || 'text'; last = m[2]; }
+    if (!last) return null;
+    const ext = ({ html:'html', css:'css', js:'js', javascript:'js', python:'py', json:'json' })[lang] || 'txt';
+    return { code: last, lang, fileName: `code.${ext}` };
+  }
+
+  addMessageToUI(text, sender, label) {
+    this.$('welcome')?.remove();
+    const div = document.createElement('div');
+    div.className = `message ${sender}-message`;
+    if (label === 'error') div.classList.add('error');
+    const s = document.createElement('div'); s.className = 'message-sender';
+    s.textContent = label === 'error' ? 'Error' : (label || (sender === 'user' ? 'You' : 'AI'));
+    const c = document.createElement('div'); c.className = 'message-content';
+    if (sender === 'ai') c.innerHTML = this.renderMarkdown(text);
+    else c.textContent = text;
+    div.appendChild(s); div.appendChild(c);
+    this.chatMessages.appendChild(div);
+    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    return div;
+  }
+
+  newChat() {
+    this.currentChatId = null;
+    this.chatMessages.innerHTML = `<div class="welcome" id="welcome"><h1>AI Chat</h1><p>How can I help you today?</p></div>`;
+    this.clearAttachments(); this.sendBtn.disabled = true;
+    this.sidePanel.classList.add('hidden');
+    this.currentPanelState = null; this.currentRaw = null;
+    this.availableTabs = []; this.activeTab = null;
+    this.codeToggleBtn.classList.add('hidden');
+    this.loadHistory();
+    this.chatInput.focus();
+  }
+
+  saveChats() { localStorage.setItem('puter-chats', JSON.stringify(this.chats)); this.loadHistory(); }
+
+  loadHistory() {
+    this.historyList.innerHTML = '';
+    Object.entries(this.chats).sort((a,b)=>b[0]-a[0]).forEach(([id, chat]) => {
+      const item = document.createElement('div');
+      item.className = `history-item ${this.currentChatId===id?'active':''}`;
+      const toks = (chat.totalTokens||0).toLocaleString();
+      const cost = (chat.totalCost||0).toFixed(6);
+      item.innerHTML = `${chat.title || 'Untitled'}<div class="history-meta">${toks} tok · $${cost}</div>`;
+      item.addEventListener('click', () => this.loadChat(id));
+      this.historyList.appendChild(item);
+    });
+  }
+
+  loadChat(id) {
+    const chat = this.chats[id]; if (!chat) return;
+    this.currentChatId = id;
+    this.chatMessages.innerHTML = '';
+    chat.messages.forEach(m => {
+      const label = m.role === 'user' ? 'You' : (m.model || 'AI');
+      const el = this.addMessageToUI(m.content, m.role === 'user' ? 'user' : 'ai', label);
+      if (m.role === 'ai' && m.reasoning) this.insertReasoningBlock(el, m.reasoning);
+      if (m.role === 'ai' && m.usage) this.updateMsgMeta(el, m.usage, [], m.model || 'AI');
+    });
+    const lastAI = [...chat.messages].reverse().find(m => m.role === 'ai');
+    if (lastAI && this.extractCode(lastAI.content)) this.showCodeInPanel(lastAI.content);
+    else { this.sidePanel.classList.add('hidden'); this.currentPanelState = null; this.availableTabs = []; this.activeTab = null; }
+    this.refreshCodeButton();
+    this.loadHistory();
+  }
+
+  setupResizers() {
+    const makeResizer = (handle, target, side, varName) => {
+      let startX, startW;
+      const onDown = e => {
+        startX = e.clientX;
+        startW = target.getBoundingClientRect().width;
+        handle.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        e.preventDefault();
+      };
+      const onMove = e => {
+        const dx = e.clientX - startX;
+        let w = side === 'left' ? startW + dx : startW - dx;
+        w = Math.max(180, Math.min(700, w));
+        target.style.width = w + 'px';
+        document.documentElement.style.setProperty(varName, w + 'px');
+      };
+      const onUp = () => {
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        localStorage.setItem('puter-' + varName, target.style.width);
+      };
+      handle.addEventListener('mousedown', onDown);
+    };
+    makeResizer(this.$('leftResizer'), this.sidebar, 'left', '--sidebar-w');
+    makeResizer(this.$('rightResizer'), this.sidePanel, 'right', '--sidepanel-w');
+    const lw = localStorage.getItem('puter---sidebar-w');
+    const rw = localStorage.getItem('puter---sidepanel-w');
+    if (lw) { this.sidebar.style.width = lw; document.documentElement.style.setProperty('--sidebar-w', lw); }
+    if (rw) { this.sidePanel.style.width = rw; document.documentElement.style.setProperty('--sidepanel-w', rw); }
+  }
+
+  setupScrollHelper() {
+    const check = () => {
+      const el = this.chatMessages;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      this.scrollHelper.classList.toggle('visible', !nearBottom && el.scrollHeight > el.clientHeight + 50);
+    };
+    this.chatMessages.addEventListener('scroll', check);
+    this.scrollHelper.addEventListener('click', () => {
+      this.chatMessages.scrollTo({ top: this.chatMessages.scrollHeight, behavior: 'smooth' });
+    });
+    setInterval(check, 800);
+  }
+}
+
+window.__copyCode = (btn) => {
+  const pre = btn.closest('.code-block').querySelector('pre code');
+  navigator.clipboard.writeText(pre.textContent);
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = 'Copy', 1200);
+};
+
+window.addEventListener('load', () => {
+  if (typeof window.puter === 'undefined') {
+    console.error('Puter.js failed to load.');
+    const b = document.getElementById('banner');
+    if (b) { b.textContent = 'Puter.js did not load — CSP or network issue.'; b.classList.add('visible'); }
+    const u = document.getElementById('usageText');
+    if (u) u.innerHTML = '<span style="color:#c0392b;font-weight:600">Puter unavailable</span>';
+    return;
+  }
+  new AIChatApp();
+});
+</script>
+<script src="https://js.puter.com/v2/"></script>
+</body>
+</html>
