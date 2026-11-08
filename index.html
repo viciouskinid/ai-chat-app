@@ -218,6 +218,14 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .search-item .sn{font-size:.78rem;color:var(--text-secondary);margin-top:3px;line-height:1.45;white-space:pre-wrap;word-break:break-word;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .search-item mark{background:rgba(217,119,87,.28);color:inherit;border-radius:2px;padding:0 1px}
 .search-empty{padding:28px;text-align:center;color:var(--text-muted);font-size:.85rem}
+
+.hist-clear{background:none;border:none;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);cursor:pointer;padding:2px 6px;border-radius:4px}
+.hist-clear:hover,.hist-clear.armed{color:#fff;background:var(--danger)}
+.history-item{position:relative;padding-right:30px}
+.hist-del{position:absolute;right:6px;top:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:.9rem;line-height:1;padding:2px 6px;border-radius:4px;opacity:0;transition:opacity .15s}
+.history-item:hover .hist-del,.hist-del.armed{opacity:1}
+.hist-del:hover{color:var(--danger)}
+.hist-del.armed{background:var(--danger);color:#fff;font-size:.68rem}
 </style>
 </head>
 <body>
@@ -237,7 +245,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
           <span>Search</span><span class="shortcut">Ctrl+K</span>
         </button>
       </div>
-      <div class="history-section-label">Chats</div>
+      <div class="history-section-label" style="display:flex;justify-content:space-between;align-items:center">Chats <button id="clearHistoryBtn" class="hist-clear" title="Delete all chats">Clear all</button></div>
       <div class="history-list" id="historyList"></div>
     </aside>
     <div class="resizer" id="leftResizer" title="Drag to resize sidebar"></div>
@@ -959,6 +967,17 @@ class AIChatApp {
     });
 
     this.$('newChatRow').addEventListener('click', () => this.newChat());
+    const clr = this.$('clearHistoryBtn');
+    clr.addEventListener('click', () => {
+      if (!Object.keys(this.chats).length) return;
+      if (!clr.classList.contains('armed')) {
+        clr.classList.add('armed'); clr.textContent = 'Sure?';
+        setTimeout(() => { clr.classList.remove('armed'); clr.textContent = 'Clear all'; }, 3000);
+        return;
+      }
+      clr.classList.remove('armed'); clr.textContent = 'Clear all';
+      this.clearAllChats();
+    });
     this.$('searchRow').addEventListener('click', () => this.focusSearch());
 
     this.copyBtn.addEventListener('click', () => this.copyCurrent());
@@ -1089,6 +1108,17 @@ class AIChatApp {
   renderTabs() {
     this.tabStrip.innerHTML = '';
     this.availableTabs.forEach(t => {
+      if (t === 'raw') {
+        if (!this.rawMode) this.rawMode = 'raw';
+        [['raw', 'Raw'], ['pretty', 'Pretty print']].forEach(([k, label]) => {
+          const rb = document.createElement('button');
+          rb.dataset.tab = 'raw'; rb.dataset.mode = k; rb.textContent = label;
+          if (this.activeTab === 'raw' && this.rawMode === k) rb.classList.add('active');
+          rb.addEventListener('click', () => { this.rawMode = k; this.switchTab('raw'); });
+          this.tabStrip.appendChild(rb);
+        });
+        return;
+      }
       const b = document.createElement('button');
       b.dataset.tab = t;
       b.textContent = t === 'raw' ? 'Response' : (t.charAt(0).toUpperCase() + t.slice(1));
@@ -1111,7 +1141,7 @@ class AIChatApp {
 
   updateSideTitle() {
     if (this.activeTab === 'raw' && this.currentRaw) {
-      this.sideTitle.innerHTML = `<b>Response</b><span class="sep">·</span>${esc(this.currentRaw.model || '')}`;
+      this.sideTitle.innerHTML = `<b>${esc(this.currentRaw.model || 'Response')}</b>`;
     } else if (this.activeTab === 'log') {
       this.sideTitle.innerHTML = `<b>Debug log</b><span class="sep">·</span>${DebugLog.entries.length} entries`;
     } else if (this.activeTab === 'settings') {
@@ -1900,17 +1930,6 @@ class AIChatApp {
   renderResponseViewer() {
     if (!this.rawMode) this.rawMode = 'raw';
     this.rawViewer.innerHTML = '';
-    const bar = document.createElement('div');
-    bar.className = 'segmented';
-    bar.style.marginBottom = '10px';
-    [['raw', 'Raw'], ['pretty', 'Pretty print']].forEach(([k, label]) => {
-      const b = document.createElement('button');
-      b.textContent = label;
-      if (this.rawMode === k) b.classList.add('active');
-      b.addEventListener('click', () => { this.rawMode = k; this.renderResponseViewer(); });
-      bar.appendChild(b);
-    });
-    this.rawViewer.appendChild(bar);
     const pre = document.createElement('pre');
     pre.className = 'raw-text';
     pre.textContent = this.currentRaw ? (this.currentRawView() || 'No raw chunks stored for this message (sent before chunks were saved).') : 'No response selected.';
@@ -2230,8 +2249,35 @@ class AIChatApp {
       const cost = (chat.totalCost || 0).toFixed(6);
       item.innerHTML = `${esc(chat.title || 'Untitled')}<div class="history-meta">${toks} tok · $${cost}</div>`;
       item.addEventListener('click', () => this.loadChat(id));
+      const del = document.createElement('button');
+      del.className = 'hist-del'; del.title = 'Delete chat'; del.textContent = '×';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        if (!del.classList.contains('armed')) {
+          del.classList.add('armed'); del.textContent = 'Delete?';
+          setTimeout(() => { if (del.isConnected) { del.classList.remove('armed'); del.textContent = '×'; } }, 3000);
+          return;
+        }
+        this.deleteChat(id);
+      });
+      item.appendChild(del);
       this.historyList.appendChild(item);
     });
+  }
+
+  deleteChat(id) {
+    delete this.chats[id];
+    const wasCurrent = this.currentChatId === id;
+    this.saveChats();
+    this.updateTotalUsage();
+    if (wasCurrent) this.newChat();
+  }
+
+  clearAllChats() {
+    this.chats = {};
+    this.saveChats();
+    this.updateTotalUsage();
+    this.newChat();
   }
 
   loadChat(id) {
