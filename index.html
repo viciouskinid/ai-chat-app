@@ -7,38 +7,107 @@
   <link rel="stylesheet" href="./app.css" />
 </head>
 <body>
-  <div class="app">
-    <div class="usage-bar" id="usageBar">
-      <span id="usageText">Usage loading…</span>
-      <button id="refreshUsageBtn" title="Refresh">↻</button>
+  <div class="app-layout">
+    <!-- Left Sidebar: History -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h2>History</h2>
+        <button id="newChatBtn" title="New Chat">+</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <!-- History items will be injected here -->
+      </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <div class="chat-container" id="chatContainer">
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <button id="toggleSidebarBtn" title="Toggle History">☰</button>
+        <div class="usage-bar" id="usageBar">
+          <span id="usageText">Usage loading…</span>
+          <button id="refreshUsageBtn" title="Refresh">↻</button>
+        </div>
+        <button id="toggleLogBtn" title="Toggle Network Log">Log</button>
+      </div>
+
+      <!-- Chat Messages -->
+      <main class="chat-messages" id="chatMessages">
+        <div class="welcome" id="welcome">
+          <h2>Hello</h2>
+          <p>Pick a model below and start chatting.</p>
+        </div>
+      </main>
+
+      <!-- Composer -->
+      <footer class="composer">
+        <!-- Paste Preview Area -->
+        <div class="paste-preview" id="pastePreview">
+          <div class="paste-header">
+            <span>Pasted Content</span>
+            <button id="clearPasteBtn" title="Clear">×</button>
+          </div>
+          <div class="paste-content" id="pasteContent"></div>
+        </div>
+
+        <div class="model-row">
+          <select id="modelSelect" class="model-select">
+            <option value="">Loading models…</option>
+          </select>
+        </div>
+        <form id="chatForm" class="input-row">
+          <textarea id="chatInput" placeholder="Message…" autocomplete="off" rows="1"></textarea>
+          <button id="sendBtn" type="submit">Send</button>
+        </form>
+        <div id="streamingIndicator" class="streaming">Thinking…</div>
+        <div class="build-status">
+          <span id="build" class="status-build" title="Build date and time (local)"></span>
+        </div>
+      </footer>
     </div>
 
-    <main class="chat-messages" id="chatMessages">
-      <div class="welcome" id="welcome">
-        <h2>Hello</h2>
-        <p>Pick a model below and start chatting.</p>
+    <!-- Right Sidebar: Code View / Network Log -->
+    <aside class="side-panel" id="sidePanel">
+      <div class="side-panel-header">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="code">Code View</button>
+          <button class="tab-btn" data-tab="log">Network Log</button>
+        </div>
+        <button id="closeSidePanelBtn" title="Close">×</button>
       </div>
-    </main>
+      
+      <!-- Code View Tab -->
+      <div class="tab-content" id="tab-code">
+        <div class="code-header">
+          <span id="codeLanguage">html</span>
+          <button id="copyCodeBtn" title="Copy Code">Copy</button>
+        </div>
+        <pre class="code-preview"><code id="codeContent"></code></pre>
+      </div>
 
-    <footer class="composer">
-      <div class="model-row">
-        <select id="modelSelect" class="model-select">
-          <option value="">Loading models…</option>
-        </select>
+      <!-- Network Log Tab -->
+      <div class="tab-content" id="tab-log" style="display:none;">
+        <div class="log-header">
+          <span>Network Activity</span>
+          <button id="copyLogBtn" title="Copy Log">Copy Log</button>
+        </div>
+        <pre class="log-content" id="logContent"></pre>
       </div>
-      <form id="chatForm" class="input-row">
-        <input id="chatInput" type="text" placeholder="Message…" autocomplete="off" required />
-        <button id="sendBtn" type="submit">Send</button>
-      </form>
-      <div id="streamingIndicator" class="streaming">Thinking…</div>
-      <div class="build-status">
-        <span id="build" class="status-build" title="Build date and time (local)"></span>
-      </div>
-    </footer>
+    </aside>
   </div>
+
   <script src="https://js.puter.com/v2/"></script>
   <script src="./build.js"></script>
   <script src="./app.js"></script>
-  <script>document.getElementById('build').textContent = 'Build ' + BUILD_STAMP;</script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const el = document.getElementById('build');
+      if (el && typeof BUILD_STAMP !== 'undefined') {
+        el.textContent = 'Build ' + BUILD_STAMP;
+      } else if (el) {
+        el.textContent = 'Build stamp missing';
+      }
+    });
+  </script>
 </body>
 </html>
