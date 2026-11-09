@@ -175,7 +175,12 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--text-primary);m
 .opt .opt-text{flex:1;display:flex;flex-direction:column;gap:1px}
 .opt .opt-text small{font-size:.7rem;color:var(--text-muted);line-height:1.35}
 .opt select{background:var(--surface-1);color:var(--text-primary);border:1px solid var(--border-strong);border-radius:6px;padding:4px 6px;font-size:.78rem;max-width:230px}
-.opt-note{font-size:.76rem;color:var(--text-muted);margin:0 0 6px;line-height:1.45}
+ .opt-note{font-size:.76rem;color:var(--text-muted);margin:0 0 6px;line-height:1.45}
+.settings-tabs{display:flex;gap:5px;flex-wrap:wrap;position:sticky;top:-16px;z-index:2;padding:4px 0 10px;margin:-4px 0 10px;background:var(--surface-0);border-bottom:1px solid var(--border)}
+.settings-tabs button{border:1px solid var(--border-strong);background:var(--surface-1);color:var(--text-secondary);border-radius:7px;padding:5px 9px;font-size:.74rem;cursor:pointer}
+.settings-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.model-price{font-size:.75rem;color:var(--text-secondary);margin:4px 0 8px;padding:7px 9px;background:var(--surface-2);border-radius:6px}
+.settings-intro{font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 10px}
 
 .raw-text{margin:0;font-family:var(--font-mono);font-size:.8rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;color:var(--text-primary)}
 .attach-btn{background:none;border:none;font-size:1.05rem;cursor:pointer;color:var(--text-secondary);padding:4px 8px;border-radius:6px}
@@ -1312,7 +1317,11 @@ class AIChatApp {
     });
     [this.$('settingsModalBody'), this.settingsViewer].forEach(c => {
       c.addEventListener('change', ev => { const el = ev.target.closest('[data-setting]'); if (el) this.onSettingChange(el); });
-      c.addEventListener('click', ev => { const b = ev.target.closest('[data-action]'); if (b) this.onAction(b.dataset.action, b); });
+      c.addEventListener('click', ev => {
+        const tab = ev.target.closest('[data-settings-tab]');
+        if (tab) { this.settingsTab = tab.dataset.settingsTab; this.refreshSettingsUI(); return; }
+        const b = ev.target.closest('[data-action]'); if (b) this.onAction(b.dataset.action, b);
+      });
     });
     DebugLog.event('app-start', { userAgent: navigator.userAgent, viewport: `${innerWidth}x${innerHeight}`, puterLoaded: this.puterReady() });
   }
@@ -1382,6 +1391,8 @@ class AIChatApp {
     const flash = (txt) => { const o = btn.textContent; btn.textContent = txt; setTimeout(() => { btn.textContent = o; }, 1500); };
     if (action === 'copy-report') await this.copyReport(btn);
     else if (action === 'download-report') this.downloadReport();
+    else if (action === 'refresh-models') { await this.loadModels(); this.refreshSettingsUI(); }
+    else if (action === 'refresh-usage') { await this.loadUsage(); this.refreshSettingsUI(); }
     else if (action === 'copy-log') {
       try { await navigator.clipboard.writeText(this.formatLog()); flash('Copied!'); } catch (_) { flash('Failed'); }
     } else if (action === 'clear-log') { DebugLog.clear(); this.renderLogViewer(); this.refreshSettingsUI(); }
@@ -2010,61 +2021,125 @@ class AIChatApp {
     return `<label class="opt${dis ? ' off' : ''}">${text}<select data-setting="${it.key}"${dis}>${opts}</select></label>`;
   }
 
+  modelPriceHTML(m) {
+    if (!m || typeof m !== 'object') {
+      return '<div class="model-price">Pricing information unavailable.</div>';
+    }
+
+    // Puter currently exposes per-token rates as `costs` + `costs_currency`.
+    // The older `cost` shape is also accepted for compatibility with other SDK versions.
+    const c = (m.costs && typeof m.costs === 'object') ? m.costs
+      : ((m.cost && typeof m.cost === 'object') ? m.cost : null);
+    const tokens = Number(c?.tokens);
+    const currency = String(m.costs_currency || c?.currency || '').toLowerCase();
+    const divisor = currency === 'usd-cents' ? 100 : (currency === 'usd' ? 1 : null);
+
+    if (c && Number.isFinite(tokens) && tokens > 0 && divisor !== null) {
+      const inputKey = m.input_cost_key || 'prompt_tokens';
+      const outputKey = m.output_cost_key || 'completion_tokens';
+      const inputRaw = c[inputKey];
+      const outputRaw = c[outputKey];
+      const hasInput = inputRaw !== undefined && inputRaw !== null && Number.isFinite(Number(inputRaw));
+      const hasOutput = outputRaw !== undefined && outputRaw !== null && Number.isFinite(Number(outputRaw));
+      const scale = 1000000 / tokens / divisor;
+      const fmt = v => '$' + (Number(v) * scale).toFixed(4);
+      const input = hasInput ? fmt(inputRaw) : 'Not listed';
+      const output = hasOutput ? fmt(outputRaw) : 'Not listed';
+      if (hasInput || hasOutput) {
+        const example = hasInput && hasOutput
+          ? '$' + ((2000 * Number(inputRaw) + 1000 * Number(outputRaw)) / tokens / divisor).toFixed(6)
+          : 'Unavailable (one or more rates are not listed)';
+        return `<div class="model-price">Input: <b>${input}</b> / 1M tokens · Output: <b>${output}</b> / 1M tokens<br>Example: 2,000 input + 1,000 output tokens ≈ <b>${example}</b><small>Source: Puter costs (${esc(currency)}). A zero rate is shown as $0.0000; a missing rate is not assumed to be free.</small></div>`;
+      }
+    }
+
+    // Some models publish only catalogPricing, which can contain multiple tiers
+    // and/or omit one side (input or output). Preserve the catalogue's stated unit.
+    const tiers = Array.isArray(m.catalogPricing) ? m.catalogPricing : [];
+    const entries = [];
+    tiers.forEach(tier => {
+      (Array.isArray(tier?.prices) ? tier.prices : []).forEach(price => {
+        if (price && price.amount !== undefined && price.amount !== null && Number.isFinite(Number(price.amount))) {
+          entries.push(`${esc(price.name || price.type || 'Price')}: <b>${esc(String(price.amount))}</b> ${esc(price.unit || '')}`);
+        }
+      });
+    });
+    if (entries.length) {
+      return `<div class="model-price">${entries.join('<br>')}<small>Source: Puter catalogPricing${currency ? ` (${esc(currency)})` : ''}. Amounts are shown as supplied by the catalogue; tiers are not combined into a single estimate.</small></div>`;
+    }
+
+    return '<div class="model-price">Pricing not supplied for this model in the Puter catalogue.</div>';
+  }
+
   settingsHTML() {
     const S = this.settings;
     const a = this.accountInfo;
     const q = this.lastQuota?.allowanceInfo;
-    let html = '';
-    SETTINGS_SCHEMA.forEach(g => {
+    const tab = this.settingsTab || 'general';
+    const tabs = [['general','General'],['models','AI models'],['usage','Usage & accounts'],['debug','Debugging'],['diagnostics','Diagnostics']];
+    let html = `<div class="settings-tabs" role="tablist">${tabs.map(([id,label]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-settings-tab="${id}" class="${tab === id ? 'active' : ''}">${label}</button>`).join('')}</div>`;
+
+    const renderGroup = g => {
       html += `<h4>${esc(g.group)}</h4>`;
       if (g.note) html += `<div class="opt-note">${esc(g.note)}</div>`;
       g.items.forEach(it => { html += this.optionHTML(it); });
-      if (g.actions) {
-        html += `<div class="opt-actions"><button data-action="copy-report">Copy debug report</button><button data-action="download-report">Download report</button><button data-action="open-log">Open log</button><button data-action="clear-log">Clear log (${DebugLog.entries.length})</button></div>`;
-      }
-    });
-    html += `<div class="opt-actions"><button data-action="reset-settings">Reset settings to defaults</button></div>`;
+      if (g.actions) html += `<div class="opt-actions"><button data-action="copy-report">Copy debug report</button><button data-action="download-report">Download report</button><button data-action="open-log">Open log</button><button data-action="clear-log">Clear log (${DebugLog.entries.length})</button></div>`;
+    };
 
-    if (S.showAccount) {
-      html += `<h4>Account</h4>`;
-      if (a) {
-        html += `<div class="row"><span class="k">User</span> <span class="v">${esc(a.username || a.email || a.uuid || '(unknown)')}</span></div>`;
-        html += `<div class="row"><span class="k">UUID</span> <span class="v">${esc(a.uuid || '')}</span></div>`;
-      } else html += `<div class="row">Not available</div>`;
-    }
-    if (S.showQuota) {
-      html += `<h4>Quota</h4>`;
-      if (q) {
-        html += `<div class="row">Remaining: <b>${num(q.remaining)}</b> ${esc(q.unit || '')}</div>`;
-        html += `<div class="row">Allowance: <b>${num(q.monthUsageAllowance)}</b> ${esc(q.unit || '')}</div>`;
-      } else html += `<div class="row">Not available</div>`;
-    }
-    if (S.showUsage) {
-      html += `<h4>Usage this month (allowance is shared by all models)</h4>`;
-      const rows = this.usageByModel();
-      if (rows.length) rows.forEach(r => { html += `<div class="row"><span class="v">${esc(r.name)}</span> — <b>${r.cost.toFixed(3)}</b> cr · ${r.count} calls</div>`; });
-      else html += `<div class="row">Not available</div>`;
-    }
-    if (S.showRawUsage && this.lastQuota) html += `<details><summary>Raw usage JSON</summary><pre>${esc(JSON.stringify(this.lastQuota, null, 2))}</pre></details>`;
-    if (S.showModels) {
-      html += `<h4>All models (${this.allModels.length})</h4>`;
+    if (tab === 'general') {
+      SETTINGS_SCHEMA.filter(g => g.group === 'Behaviour').forEach(renderGroup);
+    } else if (tab === 'models') {
+      html += `<h4>AI model pricing</h4><p class="settings-intro">Rates are read live from <code>puter.ai.listModels()</code>. Values are converted to USD per million tokens where the catalogue provides a recognised currency. The example assumes 2,000 input and 1,000 output tokens; your actual charge depends on real token usage, caching and the selected model variant.</p>`;
+      html += `<div class="opt-actions"><button data-action="refresh-models">Refresh model list</button></div>`;
+      if (!this.allModels.length) html += '<div class="row">No model catalogue loaded yet. Sign in / wait for Puter.js, then refresh.</div>';
       this.allModels.forEach(m => {
         const id = typeof m === 'string' ? m : (m.id || m.name);
+        if (!id) return;
         const provider = m.provider || inferProvider(id);
         const ctx = m.context || m.maxInputTokens || '?';
         const maxTok = m.max_tokens || '?';
-        const prices = m.costs ? JSON.stringify(m.costs) : '—';
-        html += `<details>
-        <summary>${esc(id)} · <span class="k">${esc(providerLabel(provider))}</span></summary>
-        <div class="row"><span class="k">ID</span> <span class="v">${esc(id)}</span></div>
-        <div class="row"><span class="k">Provider</span> <span class="v">${esc(provider)}</span></div>
-        <div class="row"><span class="k">Context</span> <span class="v">${esc(ctx)}</span></div>
-        <div class="row"><span class="k">Max output</span> <span class="v">${esc(maxTok)}</span></div>
-        <div class="row"><span class="k">Prices</span> <span class="v">${esc(prices)}</span></div>
-        <details><summary>Raw model JSON</summary><pre>${esc(JSON.stringify(m, null, 2))}</pre></details>
-      </details>`;
+        html += `<details><summary>${esc(id)} · <span class="k">${esc(providerLabel(provider))}</span></summary>
+          <div class="row"><span class="k">Provider</span> <span class="v">${esc(provider)}</span></div>
+          <div class="row"><span class="k">Context</span> <span class="v">${esc(ctx)}</span></div>
+          <div class="row"><span class="k">Max output</span> <span class="v">${esc(maxTok)}</span></div>
+          ${this.modelPriceHTML(m)}
+          <details><summary>Raw model JSON</summary><pre>${esc(JSON.stringify(m, null, 2))}</pre></details>
+        </details>`;
       });
+      html += '<p class="settings-intro">A missing input or output rate is shown separately and is not assumed to be free. Zero rates are displayed as $0.0000. Some models publish tiered catalogPricing rather than a single rate. Prices can change.</p>';
+    } else if (tab === 'usage') {
+      if (S.showAccount) {
+        html += '<h4>Account</h4>';
+        if (a) {
+          html += `<div class="row"><span class="k">User</span> <span class="v">${esc(a.username || a.email || a.uuid || '(unknown)')}</span></div>`;
+          html += `<div class="row"><span class="k">UUID</span> <span class="v">${esc(a.uuid || '')}</span></div>`;
+        } else html += '<div class="row">Not available</div>';
+      }
+      if (S.showQuota) {
+        html += '<h4>Quota</h4>';
+        if (q) {
+          html += `<div class="row">Remaining: <b>${num(q.remaining)}</b> ${esc(q.unit || '')}</div>`;
+          html += `<div class="row">Allowance: <b>${num(q.monthUsageAllowance)}</b> ${esc(q.unit || '')}</div>`;
+        } else html += '<div class="row">Not available</div>';
+      }
+      if (S.showUsage) {
+        html += '<h4>Usage this month (allowance is shared by all models)</h4>';
+        const rows = this.usageByModel();
+        if (rows.length) rows.forEach(r => { html += `<div class="row"><span class="v">${esc(r.name)}</span> — <b>${r.cost.toFixed(3)}</b> cr · ${r.count} calls</div>`; });
+        else html += '<div class="row">Not available</div>';
+      }
+      if (S.showRawUsage && this.lastQuota) html += `<details><summary>Raw usage JSON</summary><pre>${esc(JSON.stringify(this.lastQuota, null, 2))}</pre></details>`;
+      html += '<div class="opt-actions"><button data-action="refresh-usage">Refresh usage / quota</button></div>';
+      SETTINGS_SCHEMA.filter(g => g.group === 'Show on this page').forEach(renderGroup);
+    } else if (tab === 'debug') {
+      SETTINGS_SCHEMA.filter(g => g.group === 'Debug logging').forEach(renderGroup);
+    } else if (tab === 'diagnostics') {
+      SETTINGS_SCHEMA.filter(g => g.group === 'Debug report (Diag button / Copy report)').forEach(renderGroup);
+      html += `<h4>Model catalogue diagnostics</h4><div class="row">Models loaded: <b>${this.allModels.length}</b></div><div class="row">Last quota snapshot: <b>${this.lastQuota ? 'available' : 'not available'}</b></div>`;
+      html += `<div class="opt-actions"><button data-action="copy-report">Copy debug report</button><button data-action="download-report">Download report</button><button data-action="open-log">Open log</button></div>`;
     }
+    if (tab === 'general') html += '<p class="settings-intro">Model selection is in the chat composer. Pricing and usage details are in the other settings tabs.</p>';
+    html += `<div class="opt-actions"><button data-action="reset-settings">Reset settings to defaults</button></div>`;
     return html;
   }
 
